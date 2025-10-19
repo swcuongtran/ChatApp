@@ -1,0 +1,6 @@
+services:
+  chatapp.gateway:
+    image: ${DOCKER_REGISTRY-}chatappgateway
+    build:
+      context: .
+      dockerfile: src/Gateway/ChatApp.Gateway/Dockerfile
