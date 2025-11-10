@@ -4,3 +4,10 @@ services:
     build:
       context: .
       dockerfile: src/Gateway/ChatApp.Gateway/Dockerfile
+
+  chatservice.api:
+    image: ${DOCKER_REGISTRY-}chatserviceapi
+    build:
+      context: .
+      dockerfile: src/ChatService/ChatService.Api/Dockerfile
+
