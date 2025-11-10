@@ -1,12 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using BuildingBlock.CQRS;
 
 namespace ChatService.Application.Conversations
 {
-    internal class RenameConversationCommand
-    {
-    }
-}
+    public sealed record RenameConversationCommand(string ConversationId, string ActorUserId, string NewTitle) : ICommand;
+        };

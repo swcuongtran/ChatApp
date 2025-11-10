@@ -1,12 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using BuildingBlock.DomainBase;
 
 namespace ChatService.Domain.Events
 {
-    internal class ConversationMembersChangedDomainEvent
-    {
-    }
+    public sealed record ConversationMembersChangedDomainEvent(
+    DateTimeOffset OccurredAt,
+    string ConversationId,
+    IReadOnlyList<string> Added,
+    IReadOnlyList<string> Removed,
+    string ActorUserId
+) : DomainEventBase(OccurredAt);
 }
