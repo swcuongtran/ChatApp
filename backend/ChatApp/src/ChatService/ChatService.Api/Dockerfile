@@ -1,0 +1,35 @@
+# See https://aka.ms/customizecontainer to learn how to customize your debug container and how Visual Studio uses this Dockerfile to build your images for faster debugging.
+
+# This stage is used when running from VS in fast mode (Default for Debug configuration)
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
+USER $APP_UID
+WORKDIR /app
+EXPOSE 8080
+EXPOSE 8081
+
+
+# This stage is used to build the service project
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+ARG BUILD_CONFIGURATION=Release
+WORKDIR /src
+COPY ["src/ChatService/ChatService.Api/ChatService.Api.csproj", "src/ChatService/ChatService.Api/"]
+COPY ["src/ChatService/ChatService.Application/ChatService.Application.csproj", "src/ChatService/ChatService.Application/"]
+COPY ["src/Shared/BuildingBlock/BuildingBlock.csproj", "src/Shared/BuildingBlock/"]
+COPY ["src/Shared/Contracts/Contracts.csproj", "src/Shared/Contracts/"]
+COPY ["src/ChatService/ChatService.Domain/ChatService.Domain.csproj", "src/ChatService/ChatService.Domain/"]
+COPY ["src/ChatService/ChatService.Infrastructure/ChatService.Infrastructure.csproj", "src/ChatService/ChatService.Infrastructure/"]
+RUN dotnet restore "./src/ChatService/ChatService.Api/ChatService.Api.csproj"
+COPY . .
+WORKDIR "/src/src/ChatService/ChatService.Api"
+RUN dotnet build "./ChatService.Api.csproj" -c $BUILD_CONFIGURATION -o /app/build
+
+# This stage is used to publish the service project to be copied to the final stage
+FROM build AS publish
+ARG BUILD_CONFIGURATION=Release
+RUN dotnet publish "./ChatService.Api.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+
+# This stage is used in production or when running from VS in regular mode (Default when not using the Debug configuration)
+FROM base AS final
+WORKDIR /app
+COPY --from=publish /app/publish .
+ENTRYPOINT ["dotnet", "ChatService.Api.dll"]

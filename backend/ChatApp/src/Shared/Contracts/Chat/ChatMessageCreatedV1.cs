@@ -1,4 +1,6 @@
-﻿namespace Contracts.Chat
+﻿using BuildingBlock.Messaging;
+
+namespace Contracts.Chat
 {
     public sealed record ChatMessageCreatedV1
     (
