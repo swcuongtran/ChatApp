@@ -7,6 +7,8 @@ namespace ChatService.Application.Conversations
         bool IsDirect,
         IReadOnlyList<string> Members,
         string? Title,
-        string? IdempotencyKey
+        string? IdempotencyKey,
+        string? TraceId = null,
+        string? CorrelationId = null
         ) : ICommand<string>;
 }

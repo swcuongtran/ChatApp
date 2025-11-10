@@ -35,11 +35,14 @@ namespace ChatService.Application.Messages
             Guard.AgainstNullOrWhiteSpace(cmd.ConversationId, nameof(cmd.ConversationId));
             Guard.AgainstNullOrWhiteSpace(cmd.SenderId, nameof(cmd.SenderId));
             Guard.AgainstNullOrWhiteSpace(cmd.Content, nameof(cmd.Content));
+            Guard.AgainstNullOrWhiteSpace(cmd.TraceId, nameof(cmd.TraceId));
+            Guard.AgainstNullOrWhiteSpace(cmd.CorrelationId, nameof(cmd.CorrelationId));
+
 
             var conv = await _repo.GetAsync(cmd.ConversationId) ?? throw new Exception($"Conversation with id {cmd.ConversationId} not found.");
 
-            string NewId() => cmd.MessageId ?? Guid.NewGuid().ToString("N");
-            var messageId = string.IsNullOrWhiteSpace(cmd.MessageId) ? Guid.NewGuid().ToString("N") : cmd.MessageId!;
+            string NewId() => Guid.NewGuid().ToString("N");
+            var messageId = string.IsNullOrWhiteSpace(cmd.MessageId) ? NewId() : cmd.MessageId!;
             var now = DateTimeOffset.UtcNow;
 
             conv.SendMessage(messageId, cmd.SenderId, cmd.Content, now);
@@ -60,8 +63,8 @@ namespace ChatService.Application.Messages
             Headers: new EventHeader(
                 SchemaVersion: "1",
                 Producer: "chatservice",
-                TraceId: cmd.TraceId ?? NewId(),
-                CorrelationId: cmd.CorrelationId ?? NewId()
+                TraceId: cmd.TraceId!,
+                CorrelationId: cmd.CorrelationId!
             ),
             Data: data
         );
