@@ -1,10 +1,13 @@
 ﻿using BuildingBlock.CQRS;
+using BuildingBlock.Exception;
 using BuildingBlock.Messaging;
 using BuildingBlock.Outbox;
 using ChatService.Application.Abstractions;
-using ChatService.Domain.Conversations;        
+using ChatService.Domain.Conversations;
+using Contracts;
 using Contracts.Chat;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace ChatService.Application.Conversations
 {
@@ -19,8 +22,19 @@ namespace ChatService.Application.Conversations
             _outbox = outbox;
         }
 
+        static readonly JsonSerializerOptions JsonOpts = new()
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+            Converters = { new JsonStringEnumConverter() }
+        };
+
         public async Task<string> Handle(CreateConversationCommand request, CancellationToken cancellationToken)
         {
+
+            Guard.AgainstNullOrWhiteSpace(request.TraceId, nameof(request.TraceId));
+            Guard.AgainstNullOrWhiteSpace(request.CorrelationId, nameof(request.CorrelationId));
+
             // 1) Idempotency theo IdempotencyKey (nếu FE retry)
             var conversationId = string.IsNullOrWhiteSpace(request.IdempotencyKey)
                 ? Guid.NewGuid().ToString("N")
@@ -75,8 +89,8 @@ namespace ChatService.Application.Conversations
                 Headers: new EventHeader(
                     SchemaVersion: "1",
                     Producer: "chatservice",
-                    TraceId: Guid.NewGuid().ToString("N"),
-                    CorrelationId: Guid.NewGuid().ToString("N")
+                    TraceId: request.TraceId!,
+                    CorrelationId: request.CorrelationId!
                 ),
                 Data: evtData
             );
@@ -84,9 +98,9 @@ namespace ChatService.Application.Conversations
             var outbox = new OutboxMessage
             {
                 Id = envelope.EventId,
-                Type = "chat.conversation.created.v1", // hoặc dùng Topics.ConversationCreated nếu bạn có hằng số
-                Payload = JsonSerializer.Serialize(envelope),
-                Headers = JsonSerializer.Serialize(envelope.Headers),
+                Type = Topics.ConversationCreated,
+                Payload = JsonSerializer.Serialize(envelope,JsonOpts),
+                Headers = JsonSerializer.Serialize(envelope.Headers,JsonOpts),
                 OccurredAt = now
             };
 

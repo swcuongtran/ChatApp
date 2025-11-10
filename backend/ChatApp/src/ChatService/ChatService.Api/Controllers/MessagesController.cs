@@ -3,6 +3,7 @@ using ChatService.Application.Messages;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;
+using Utils.Correlation;
 
 namespace ChatService.Api.Controllers
 {
@@ -11,23 +12,19 @@ namespace ChatService.Api.Controllers
     public class MessagesController : ControllerBase
     {
         private readonly SendMessageHandler _handler;
+        private readonly ICorrelationIdProvider _correlationIdProvider;
         private readonly ILogger<MessagesController> _logger;
-        public MessagesController(SendMessageHandler handler, ILogger<MessagesController> logger)
+        public MessagesController(SendMessageHandler handler, ILogger<MessagesController> logger, ICorrelationIdProvider correlationIdProvider)
         {
             _handler = handler;
             _logger = logger;
+            _correlationIdProvider = correlationIdProvider;
         }
         [HttpPost("send")]
         public async Task<IActionResult> SendMessage([FromBody] SendMessageRequest request, CancellationToken cancellationToken)
         {
-            var traceId = Activity.Current?.TraceId.ToString();
-            var corrId = HttpContext.Request.Headers["X-Correlation-Id"].FirstOrDefault();
-
-            if (string.IsNullOrWhiteSpace(corrId))
-            {
-                corrId = Guid.NewGuid().ToString("N");
-                _logger.LogWarning("X-Correlation-Id was missing, generated new one: {CorrelationId}", corrId);
-            }
+            var traceId = _correlationIdProvider.TraceId;
+            var corrId = _correlationIdProvider.CorrelationId;
 
             var command = new SendMessageCommand(
                 ConversationId: request.ConversationId,

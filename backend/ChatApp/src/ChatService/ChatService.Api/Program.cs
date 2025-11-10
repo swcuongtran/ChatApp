@@ -7,6 +7,11 @@ using ChatService.Infrastructure.Messaging;
 using ChatService.Infrastructure.Outbox;
 using ChatService.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
+using Utils.Correlation;
+using ChatService.Application.Conversations;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,6 +21,22 @@ builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
+var serviceName = "ChatService";
+var resource = ResourceBuilder.CreateDefault().AddService(serviceName);
+
+builder.Services.AddOpenTelemetry()
+   .ConfigureResource(r => r.AddService(serviceName))
+   .WithMetrics(m => m
+       .SetResourceBuilder(resource)
+       .AddAspNetCoreInstrumentation()
+       .AddOtlpExporter())
+   .WithTracing(t => t
+       .SetResourceBuilder(resource)
+       .AddAspNetCoreInstrumentation(o => o.RecordException = true)
+       .AddOtlpExporter());
+
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICorrelationIdProvider, HttpCorrelationIdProvider>();
 
 builder.Services.AddDbContext<ChatDbContext>(opt =>
 {
@@ -30,6 +51,10 @@ builder.Services.AddDbContext<ChatDbContext>(opt =>
 
 builder.Services.AddScoped<IConversationRepository, ConversationRepository>();
 builder.Services.AddScoped<SendMessageHandler>();
+builder.Services.AddScoped<CreateConversationHandler>();
+builder.Services.AddScoped<RenameConversationHandler>();
+builder.Services.AddScoped<AddConversationMemberHandler>();
+builder.Services.AddScoped<RemoveConversationMemberHandler>();
 
 builder.Services.AddScoped<IOutboxStore, EfOutboxStore>();
 builder.Services.AddHostedService<OutboxDispatcher>();
