@@ -10,7 +10,9 @@ namespace ChatService.Infrastructure.Persistence.Configurations
         {
             builder.HasKey(x => x.Id);
             builder.Property(x => x.IsDirect);
-            builder.Property<string?>("Title");
+            builder.Property(x => x.Title);
+            builder.Property(x => x.DirectKey).HasMaxLength(200);
+            builder.HasIndex(x => x.DirectKey).IsUnique();
             builder.Metadata.FindNavigation(nameof(Conversation.Messages))!.SetPropertyAccessMode(PropertyAccessMode.Field);
             builder.OwnsMany<Message>("_messages", mb =>
             {

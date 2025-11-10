@@ -39,7 +39,7 @@ namespace ChatService.Application.Messages
             var conv = await _repo.GetAsync(cmd.ConversationId) ?? throw new Exception($"Conversation with id {cmd.ConversationId} not found.");
 
             string NewId() => cmd.MessageId ?? Guid.NewGuid().ToString("N");
-            var messageId = string.IsNullOrWhiteSpace(cmd.MessageId) ? NewId() : cmd.MessageId!;
+            var messageId = string.IsNullOrWhiteSpace(cmd.MessageId) ? Guid.NewGuid().ToString("N") : cmd.MessageId!;
             var now = DateTimeOffset.UtcNow;
 
             conv.SendMessage(messageId, cmd.SenderId, cmd.Content, now);

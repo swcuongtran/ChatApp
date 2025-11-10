@@ -17,5 +17,8 @@ namespace Contracts
         public static readonly string AttachmentUploaded = TopicName.Build("file", "attachment", "uploaded", 1);
 
         public static readonly string NotificationDispatched = TopicName.Build("notification", "user", "dispatched", 1);
+
+        public static readonly string ConversationRenamed = TopicName.Build("chat", "conversation", "renamed", 1);
+        public static readonly string ConversationMembersChanged = TopicName.Build("chat", "conversation", "members_changed", 1);
     }
 }

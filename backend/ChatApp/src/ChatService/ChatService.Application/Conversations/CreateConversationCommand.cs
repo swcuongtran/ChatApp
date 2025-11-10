@@ -1,12 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using BuildingBlock.CQRS;
 
 namespace ChatService.Application.Conversations
 {
-    internal class CreateConversationCommand
-    {
-    }
+    public sealed record CreateConversationCommand
+    (
+        bool IsDirect,
+        IReadOnlyList<string> Members,
+        string? Title,
+        string? IdempotencyKey
+        ) : ICommand<string>;
 }

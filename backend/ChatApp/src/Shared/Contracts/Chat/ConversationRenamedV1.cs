@@ -1,12 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Contracts.Chat
+﻿namespace Contracts.Chat
 {
-    internal class ConversationRenamedV1
-    {
-    }
+    public sealed record ConversationRenamedV1(
+    string ConversationId,
+    string NewTitle,
+    string ActorUserId,
+    DateTimeOffset OccurredAtUtc
+);
 }
