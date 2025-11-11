@@ -18,11 +18,13 @@ builder.Services
     {
         options.Authority = configuration["JWT_AUTHORITY"];
         options.Audience = configuration["JWT_AUDIENCE"];
+        options.RequireHttpsMetadata = false;
         options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
         {
             ValidateIssuer = true,
             ValidateAudience = true,
             ValidateLifetime = true,
+            ValidateIssuerSigningKey = false,
             NameClaimType = System.Security.Claims.ClaimTypes.NameIdentifier
         }; 
         options.Events = new JwtBearerEvents
@@ -40,6 +42,8 @@ builder.Services
             }
         };
     });
+
+builder.Services.AddHealthChecks();
 
 builder.Services.AddSignalR()
     .AddJsonProtocol();

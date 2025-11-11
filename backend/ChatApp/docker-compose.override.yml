@@ -47,6 +47,29 @@ services:
     networks:
       - chatnet
 
+  deliveryservice.api:
+    build:
+        context: .
+        dockerfile: ./src/DeliveryService/DeliveryService.Api/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_HTTP_PORTS: "8080"
+      Kafka:BootstrapServers: kafka:9092
+      Kafka:GroupId: delivery-service-group
+      JWT_AUTHORITY: "http://auth-server:8080/realms/chatapp" 
+      JWT_AUDIENCE: "chatapp-api" 
+    expose:
+      - "8080"
+    volumes:
+      - ${APPDATA}/Microsoft/UserSecrets:/home/app/.microsoft/usersecrets:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - chatnet
+
   postgres:
     image: postgres:16
     environment:
