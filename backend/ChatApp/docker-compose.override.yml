@@ -6,11 +6,11 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_HTTP_PORTS: "8080"
-      CHAT_BASE_URL: "http://chatservice.api:8081"
-      HISTORY_BASE_URL: "http://historyservice.api:8081" 
-      PRESENCE_BASE_URL: "http://presenceservice.api:8081" 
-      DELIVERY_BASE_URL: "http://deliveryservice.api:8081" 
-      SIGNALING_BASE_URL: "http://signalingservice.api:8081"
+      CHAT_BASE_URL: "http://chatservice.api:8080"
+      HISTORY_BASE_URL: "http://historyservice.api:8080" 
+      PRESENCE_BASE_URL: "http://presenceservice.api:8080" 
+      DELIVERY_BASE_URL: "http://deliveryservice.api:8080" 
+      SIGNALING_BASE_URL: "http://signalingservice.api:8080"
     ports:
       - "8081:8080"
     volumes:
