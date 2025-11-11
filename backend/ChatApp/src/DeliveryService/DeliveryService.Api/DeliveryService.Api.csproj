@@ -7,7 +7,22 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Confluent.Kafka" Version="2.12.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.10" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.8" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="9.0.10" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Common" Version="9.0.10" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.Json" Version="9.0.10" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Controllers\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Shared\BuildingBlock\BuildingBlock.csproj" />
+    <ProjectReference Include="..\..\Shared\Contracts\Contracts.csproj" />
+    <ProjectReference Include="..\..\Shared\Utils\Utils.csproj" />
   </ItemGroup>
 
 </Project>

@@ -29,6 +29,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChatService.Infrastructure"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Utils", "src\Shared\Utils\Utils.csproj", "{ED539AB6-11F7-4FF3-8A97-0CBEB8699D17}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "DeliveryService", "DeliveryService", "{89942900-6368-4E13-8ADC-F750C919BE02}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DeliveryService.Api", "src\DeliveryService\DeliveryService.Api\DeliveryService.Api.csproj", "{7774A530-D872-4426-A3B2-F53800B31E1D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -71,6 +75,10 @@ Global
 		{ED539AB6-11F7-4FF3-8A97-0CBEB8699D17}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{ED539AB6-11F7-4FF3-8A97-0CBEB8699D17}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{ED539AB6-11F7-4FF3-8A97-0CBEB8699D17}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7774A530-D872-4426-A3B2-F53800B31E1D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7774A530-D872-4426-A3B2-F53800B31E1D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7774A530-D872-4426-A3B2-F53800B31E1D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7774A530-D872-4426-A3B2-F53800B31E1D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -87,6 +95,8 @@ Global
 		{2384B99E-5DD7-4FA1-BB26-97531B89A3A3} = {870D466B-CDB2-4E01-9185-0D8EFA660F9E}
 		{AF8E34AF-368E-43A0-8D22-54789DAACE8D} = {870D466B-CDB2-4E01-9185-0D8EFA660F9E}
 		{ED539AB6-11F7-4FF3-8A97-0CBEB8699D17} = {43EB9170-745B-48D6-A17B-773F52A2FA0B}
+		{89942900-6368-4E13-8ADC-F750C919BE02} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
+		{7774A530-D872-4426-A3B2-F53800B31E1D} = {89942900-6368-4E13-8ADC-F750C919BE02}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {A0CA8DB8-E52A-4CB5-8B89-FED69DA7F562}
