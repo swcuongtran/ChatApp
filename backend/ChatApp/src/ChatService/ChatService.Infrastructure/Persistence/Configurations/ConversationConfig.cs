@@ -13,6 +13,8 @@ namespace ChatService.Infrastructure.Persistence.Configurations
             builder.Property(x => x.Title);
             builder.Property(x => x.DirectKey).HasMaxLength(200);
             builder.HasIndex(x => x.DirectKey).IsUnique();
+
+            // Cấu hình cho Messages (đã đúng)
             builder.OwnsMany(c => c.Messages, mb =>
             {
                 mb.ToTable("messages");
@@ -25,6 +27,9 @@ namespace ChatService.Infrastructure.Persistence.Configurations
                 mb.HasIndex(x => new { x.ConversationId, x.SentAt });
             });
 
+            
+            
+           
 
             builder.ToTable("conversations");
         }
