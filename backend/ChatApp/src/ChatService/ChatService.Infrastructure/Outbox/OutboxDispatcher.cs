@@ -26,6 +26,7 @@ namespace ChatService.Infrastructure.Outbox
         public async Task DispatchPendingAsync(IOutboxStore _outboxStore, CancellationToken cancellationToken = default)
         {
             var batch = await _outboxStore.DequeueBatchAsync(100, cancellationToken);
+            var jsonOpts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
             foreach (var msg in batch)
             {
                 try
@@ -33,18 +34,13 @@ namespace ChatService.Infrastructure.Outbox
                     var json = msg.Payload;
                     var convId = ExtractConversationId(json);
                     var topic = msg.Type;
-                    var integrationEvent = JsonSerializer.Deserialize<IntegrationEvent>(json, new JsonSerializerOptions
+                    EventHeader? header = null;
+                    if (!string.IsNullOrWhiteSpace(msg.Headers))
                     {
-                        PropertyNameCaseInsensitive = true
-                    });
-
-                    if (integrationEvent == null)
-                    {
-                        _logger.LogError("Failed to deserialize integration event from outbox message {MessageId}", msg.Id);
-                        continue;
+                        header = JsonSerializer.Deserialize<EventHeader>(msg.Headers, jsonOpts);
                     }
 
-                    await _eventBus.PublishAsync(topic, convId, integrationEvent);
+                    await _eventBus.PublishRawAsync(topic, convId, json, header!, cancellationToken);
 
                     await _outboxStore.MarkDispatchedAsync(msg.Id, cancellationToken);
                 }

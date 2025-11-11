@@ -45,36 +45,44 @@ namespace ChatService.Infrastructure.Messaging
         {
             var payload = JsonSerializer.Serialize(message, _jsonOpts);
 
-            var headers = new Headers();
-            if (!string.IsNullOrWhiteSpace(message.Header.TraceId))
-                headers.Add("x-trace-id", System.Text.Encoding.UTF8.GetBytes(message.Header.TraceId));
-            if (!string.IsNullOrWhiteSpace(message.Header.CorrelationId))
-                headers.Add("x-correlation-id", System.Text.Encoding.UTF8.GetBytes(message.Header.CorrelationId));
-            if (!string.IsNullOrWhiteSpace(message.Header.SchemaVersion))
-                headers.Add("x-schema-version", System.Text.Encoding.UTF8.GetBytes(message.Header.SchemaVersion));
-            if (!string.IsNullOrWhiteSpace(message.Header.Producer))
-                headers.Add("x-producer", System.Text.Encoding.UTF8.GetBytes(message.Header.Producer));
+            await PublishRawAsync(topic, key, payload, message.Header, cancellationToken);
+        }
 
+        public async Task PublishRawAsync(string topic, string key, string jsonPayload, EventHeader header, CancellationToken cancellationToken = default)
+        {
+            var headers = new Headers();
+
+            if (header != null)
+            {
+                if (!string.IsNullOrWhiteSpace(header.TraceId))
+                    headers.Add("x-trace-id", System.Text.Encoding.UTF8.GetBytes(header.TraceId));
+                if (!string.IsNullOrWhiteSpace(header.CorrelationId))
+                    headers.Add("x-correlation-id", System.Text.Encoding.UTF8.GetBytes(header.CorrelationId));
+                if (!string.IsNullOrWhiteSpace(header.SchemaVersion))
+                    headers.Add("x-schema-version", System.Text.Encoding.UTF8.GetBytes(header.SchemaVersion));
+                if (!string.IsNullOrWhiteSpace(header.Producer))
+                    headers.Add("x-producer", System.Text.Encoding.UTF8.GetBytes(header.Producer));
+            }
             var kafkaMessage = new Message<string, string>
             {
-                Key = string.IsNullOrWhiteSpace(key) ? message.EventId : key,
-                Value = payload,
+                Key = key, 
+                Value = jsonPayload, 
                 Headers = headers
             };
+
             try
             {
                 var dr = await _producer.ProduceAsync(topic, kafkaMessage, cancellationToken);
-
-                _logger.LogInformation("Published event {EventId} to topic {Topic} at offset {Offset}", message.EventId, topic, dr.Offset);
+                _logger.LogInformation("Published raw event to topic {Topic} at offset {Offset}", topic, dr.Offset);
             }
             catch (ProduceException<string, string> pex)
             {
-                _logger.LogError(pex, "Produce exception for event {EventId} to topic {Topic}: {Reason}", message.EventId, topic, pex.Error.Reason);
+                _logger.LogError(pex, "Produce exception to topic {Topic}: {Reason}", topic, pex.Error.Reason);
                 throw;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to publish event {EventId} to topic {Topic}", message.EventId, topic);
+                _logger.LogError(ex, "Failed to publish event to topic {Topic}", topic);
                 throw;
             }
         }
