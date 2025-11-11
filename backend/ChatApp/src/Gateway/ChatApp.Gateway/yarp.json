@@ -73,27 +73,27 @@
     "Clusters": {
       "chat": {
         "Destinations": {
-          "d1": { "Address": "${CHAT_BASE_URL}" }
+          "d1": { "Address": "http://chatservice.api:8080" }
         }
       },
       "history": {
         "Destinations": {
-          "d1": { "Address": "${HISTORY_BASE_URL}" }
+          "d1": { "Address": "http://historyservice.api:8080" }
         }
       },
       "presence": {
         "Destinations": {
-          "d1": { "Address": "${PRESENCE_BASE_URL}" }
+          "d1": { "Address": "http://presenceservice.api:8080" }
         }
       },
       "delivery": {
         "Destinations": {
-          "d1": { "Address": "${DELIVERY_BASE_URL}" }
+          "d1": { "Address": "http://deliveryservice.api:8080" }
         }
       },
       "signaling": {
         "Destinations": {
-          "d1": { "Address": "${SIGNALING_BASE_URL}" }
+          "d1": { "Address": "http://signalingservice.api:8080" }
         }
       }
     }

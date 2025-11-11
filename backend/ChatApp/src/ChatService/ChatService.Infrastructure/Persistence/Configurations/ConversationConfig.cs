@@ -26,11 +26,9 @@ namespace ChatService.Infrastructure.Persistence.Configurations
                 mb.WithOwner().HasForeignKey("ConversationId");
                 mb.HasIndex(x => new { x.ConversationId, x.SentAt });
             });
-
-            
-            
-           
-
+            builder.Property<List<string>>("_members")
+                        .HasColumnName("Members")
+                        .UsePropertyAccessMode(PropertyAccessMode.Field);
             builder.ToTable("conversations");
         }
     }
