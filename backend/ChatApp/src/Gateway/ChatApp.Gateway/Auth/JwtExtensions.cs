@@ -26,7 +26,7 @@ namespace ChatApp.Gateway.Auth
                         ValidateIssuer = true,
                         ValidateAudience = true,
                         ValidateLifetime = true,
-                        ValidateIssuerSigningKey = true
+                        ValidateIssuerSigningKey = false
                     };
                     o.Events = new JwtBearerEvents
                     {

@@ -1,11 +1,11 @@
-﻿
-using Confluent.Kafka;
+﻿using Confluent.Kafka;
 using Contracts;
 using Contracts.Chat;
 using DeliveryService.Api.Hubs;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.SignalR.Client;
 using System.Text.Json;
+using BuildingBlock.Messaging; // Cần thêm namespace này
 
 namespace DeliveryService.Api.Workers
 {
@@ -46,29 +46,29 @@ namespace DeliveryService.Api.Workers
             consumer.Subscribe(Topics.ChatMessageCreated);
             _logger.LogInformation("Kafka Consumer subscribed to topic {Topic}", Topics.ChatMessageCreated);
 
+            var jsonSerializerOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+
             try
             {
                 while (!stoppingToken.IsCancellationRequested)
                 {
                     var consumeResult = consumer.Consume(stoppingToken);
-
-
                     var jsonPayload = consumeResult.Message.Value;
 
                     try
                     {
-                        var messageEvent = JsonSerializer.Deserialize<ChatMessageCreatedV1>(jsonPayload,
-                            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                        
+                        var envelope = JsonSerializer.Deserialize<IntegrationEvent<ChatMessageCreatedV1>>(jsonPayload, jsonSerializerOptions);
 
-                        if (messageEvent == null)
+                        if (envelope == null || envelope.Data == null)
                         {
-                            _logger.LogError("Failed to deserialize Kafka message: {Payload}", jsonPayload);
+                            _logger.LogError("Failed to deserialize Kafka message or Data is null: {Payload}", jsonPayload);
                             continue;
                         }
 
-
+                        
+                        var messageEvent = envelope.Data;
                         var conversationId = messageEvent.ConversationId;
-
 
                         _hubContext.Clients
                             .Group(conversationId)
@@ -77,13 +77,13 @@ namespace DeliveryService.Api.Workers
                         _logger.LogInformation("Dispatched message {MessageId} to group {ConvId}",
                             messageEvent.MessageId, conversationId);
 
-
                         consumer.Commit(consumeResult);
                     }
                     catch (Exception ex)
                     {
-
+                        
                         _logger.LogError(ex, "Error processing Kafka message: {Payload}", jsonPayload);
+                       
                     }
                 }
             }
