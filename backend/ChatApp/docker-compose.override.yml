@@ -91,8 +91,39 @@ services:
     networks:
       - chatnet
 
+
+  pgadmin:
+     image: dpage/pgadmin4:latest
+     environment:
+         PGADMIN_DEFAULT_EMAIL: "admin@example.com"
+         PGADMIN_DEFAULT_PASSWORD: "admin"
+     ports:
+         - "5050:80"
+     volumes:
+            - pgadmindata:/var/lib/pgadmin
+     networks:
+       - chatnet
+     depends_on:
+       postgres:
+         condition: service_healthy
+         
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    environment:
+      KAFKA_CLUSTERS_0_NAME: "local_chatapp"
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka:9092"
+      KAFKA_CLUSTERS_0_CLUSTERID: "MkU3OEVBNTcwNTJENDM2Qk"
+    ports:
+      - "8090:8080"
+    networks:
+      - chatnet
+    depends_on:
+      kafka:
+        condition: service_healthy
+
 volumes:
   pgdata:
+  pgadmindata:
 
 networks:
   chatnet:
