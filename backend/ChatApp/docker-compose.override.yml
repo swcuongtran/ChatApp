@@ -1,11 +1,18 @@
 services:
   chatapp.gateway:
-    build: ./src/Gateway
+    build: 
+        context: .
+        dockerfile: ./src/Gateway/ChatApp.Gateway/Dockerfile
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_HTTP_PORTS: "8080"
+      CHAT_BASE_URL: "http://chatservice.api:8081"
+      HISTORY_BASE_URL: "http://historyservice.api:8081" 
+      PRESENCE_BASE_URL: "http://presenceservice.api:8081" 
+      DELIVERY_BASE_URL: "http://deliveryservice.api:8081" 
+      SIGNALING_BASE_URL: "http://signalingservice.api:8081"
     ports:
-      - "8080:8080"
+      - "8081:8080"
     volumes:
       - ${APPDATA}/Microsoft/UserSecrets:/home/app/.microsoft/usersecrets:ro
     depends_on:
@@ -15,7 +22,9 @@ services:
       - chatnet
 
   chatservice.api:
-    build: ./src/ChatService.Api
+    build: 
+        context: .
+        dockerfile: ./src/ChatService/ChatService.Api/Dockerfile
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_HTTP_PORTS: "8080"
@@ -57,19 +66,24 @@ services:
       - chatnet
 
   kafka:
-    image: bitnami/kafka:3.7
+    image: confluentinc/cp-kafka:7.6.0
     environment:
-      KAFKA_ENABLE_KRAFT: "yes"
-      KAFKA_CFG_NODE_ID: "1"
-      KAFKA_CFG_PROCESS_ROLES: controller,broker
-      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
-      KAFKA_CFG_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093"
-      KAFKA_CFG_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092"
-      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LISTENERS: 'PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:9092'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:9093'
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
 
     healthcheck:
-        test: ["CMD-SHELL", "kafka-broker-api-versions.sh --bootstrap-server localhost:9092"]
+        test: ["CMD-SHELL", "cub kafka-ready -b localhost:9092 1 1"]
         interval: 10s
         timeout: 5s
         retries: 5

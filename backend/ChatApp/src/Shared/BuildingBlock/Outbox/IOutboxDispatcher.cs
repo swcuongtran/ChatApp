@@ -2,6 +2,6 @@
 {
     public interface IOutboxDispatcher
     {
-        Task DispatchPendingAsync(CancellationToken cancellationToken = default);
+        Task DispatchPendingAsync(IOutboxStore outboxStore,CancellationToken cancellationToken = default);
     }
 }

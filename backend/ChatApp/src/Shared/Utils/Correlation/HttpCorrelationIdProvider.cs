@@ -25,10 +25,16 @@ namespace Utils.Correlation
                 var httpContext = _httpContextAccessor.HttpContext;
 
                 var traceId = Activity.Current?.TraceId.ToString();
+                if (!string.IsNullOrWhiteSpace(traceId))
+                {
+                    return traceId;
+                }
+
                 if (httpContext != null)
                 {
                     return httpContext.TraceIdentifier;
                 }
+
                 return Guid.NewGuid().ToString("N");
             }
         }
