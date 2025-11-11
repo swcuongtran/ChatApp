@@ -1,11 +1,6 @@
 ﻿using ChatService.Application.Abstractions;
 using ChatService.Domain.Conversations;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace ChatService.Infrastructure.Persistence.Repositories
 {
@@ -30,16 +25,14 @@ namespace ChatService.Infrastructure.Persistence.Repositories
 
         public async Task<Conversation?> GetAsync(string conversationId, CancellationToken token)
         {
-            return await _dbContext.conversations.Include("_messages")
-            .Include("_members")
+            return await _dbContext.conversations.Include(c=> c.Messages)
             .FirstOrDefaultAsync(x => x.Id == conversationId);
         }
 
         public async Task<Conversation?> GetByDirectKeyAsync(string directKey, CancellationToken ct = default)
         {
             return await _dbContext.conversations
-                .Include("_members")
-                .Include("_messages")
+                .Include(c=>c.Messages)
                 .FirstOrDefaultAsync(x => x.DirectKey == directKey, ct);
         }
 

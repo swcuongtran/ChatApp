@@ -8,7 +8,7 @@ namespace ChatService.Domain.Conversations
         private readonly List<Message> _messages = new();
         public IReadOnlyCollection<Message> Messages => _messages.AsReadOnly();
 
-        private readonly HashSet<string> _members = new();
+        private readonly List<string> _members = new();
         public IReadOnlyCollection<string> Members => _members;
 
         public bool IsDirect { get; private set; }
@@ -71,7 +71,13 @@ namespace ChatService.Domain.Conversations
             EnsureMembers(actorUserId);
             var added = new List<string>();
             foreach (var u in newMemberUserId)
-                if (_members.Add(u)) added.Add(u);
+            {
+                if (!_members.Contains(u))
+                {
+                    _members.Add(u);
+                    added.Add(u);
+                }
+            }
             if (added.Count > 0)
                 Raise(new ConversationMembersChangedDomainEvent(DateTimeOffset.UtcNow, Id, added, Removed: Array.Empty<string>(), ActorUserId: actorUserId));
         }
