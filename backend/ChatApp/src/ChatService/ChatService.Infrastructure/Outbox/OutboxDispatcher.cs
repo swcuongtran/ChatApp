@@ -1,5 +1,6 @@
 ﻿using BuildingBlock.Messaging;
 using BuildingBlock.Outbox;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
@@ -8,21 +9,21 @@ namespace ChatService.Infrastructure.Outbox
 {
     public sealed class OutboxDispatcher : BackgroundService, IOutboxDispatcher
     {
-        private readonly IOutboxStore _outboxStore;
+        private readonly IServiceProvider _serviceProvider;
         private readonly IEventBus _eventBus;
         private readonly ILogger<OutboxDispatcher> _logger;
 
         public OutboxDispatcher(
-            IOutboxStore outboxStore,
+            IServiceProvider serviceProvider,
             IEventBus eventBus,
             ILogger<OutboxDispatcher> logger)
         {
-            _outboxStore = outboxStore;
+            _serviceProvider = serviceProvider;
             _eventBus = eventBus;
             _logger = logger;
         }
 
-        public async Task DispatchPendingAsync(CancellationToken cancellationToken = default)
+        public async Task DispatchPendingAsync(IOutboxStore _outboxStore, CancellationToken cancellationToken = default)
         {
             var batch = await _outboxStore.DequeueBatchAsync(100, cancellationToken);
             foreach (var msg in batch)
@@ -69,8 +70,15 @@ namespace ChatService.Infrastructure.Outbox
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-                await DispatchPendingAsync(stoppingToken);
-                await Task.Delay(TimeSpan.FromMilliseconds(500), stoppingToken);
+                using (var scope = _serviceProvider.CreateScope())
+                {
+                   
+                    var outboxStore = scope.ServiceProvider.GetRequiredService<IOutboxStore>();
+
+                    
+                    await DispatchPendingAsync(outboxStore, stoppingToken);
+                }
+                    await Task.Delay(TimeSpan.FromMilliseconds(500), stoppingToken);
             }
         }
     }

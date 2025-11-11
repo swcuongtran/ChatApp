@@ -1,17 +1,18 @@
 using BuildingBlock.Messaging;
 using BuildingBlock.Outbox;
 using ChatService.Application.Abstractions;
+using ChatService.Application.Conversations;
 using ChatService.Application.Messages;
 using ChatService.Infrastructure;
 using ChatService.Infrastructure.Messaging;
 using ChatService.Infrastructure.Outbox;
 using ChatService.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
-using OpenTelemetry.Resources;
+using Microsoft.Extensions.Options;
 using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Utils.Correlation;
-using ChatService.Application.Conversations;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -61,9 +62,12 @@ builder.Services.AddHostedService<OutboxDispatcher>();
 
 builder.Services.Configure<KafkaOptions>(opt =>
 {
-    opt.Broker = Environment.GetEnvironmentVariable("KAFKA_BROKER") ?? "localhost:9092";
+    opt.Broker = Environment.GetEnvironmentVariable("KAFKA_BROKERS") ?? "localhost:9092";
     opt.ClientId = Environment.GetEnvironmentVariable("KAFKA_CLIENT_ID") ?? "chatservice-api";
 });
+
+builder.Services.AddSingleton(sp => sp.GetRequiredService<IOptions<KafkaOptions>>().Value);
+
 builder.Services.AddSingleton<IEventBus, KafkaEventBus>();
 
 builder.Services.AddHealthChecks();

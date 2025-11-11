@@ -1,14 +1,14 @@
 ﻿{
   "ReverseProxy": {
-    "Routes": [
-      {
-        "RouteId": "api-chat",
+    "Routes": {
+      "api-chat": {
         "Match": {
           "Path": "/api/chat/{**catch-all}"
         },
         "ClusterId": "chat",
         "Transforms": [
           { "RequestHeaderOriginalHost": "true" },
+          { "PathPattern": "/api/{**catch-all}" },
           {
             "RequestHeader": "X-Correlation-Id",
             "Set": "{X-Correlation-Id}"
@@ -19,8 +19,7 @@
           }
         ]
       },
-      {
-        "RouteId": "api-history",
+      "api-history": {
         "Match": {
           "Path": "/api/history/{**catch-all}"
         },
@@ -37,8 +36,7 @@
           }
         ]
       },
-      {
-        "RouteId": "api-presence",
+      "api-presence": {
         "Match": {
           "Path": "/api/presence/{**catch-all}"
         },
@@ -51,8 +49,7 @@
           }
         ]
       },
-      {
-        "RouteId": "ws-chat",
+      "ws-chat": {
         "Match": {
           "Path": "/ws/chat"
         },
@@ -64,8 +61,7 @@
           }
         ]
       },
-      {
-        "RouteId": "ws-call",
+      "ws-call": {
         "Match": { "Path": "/ws/call" },
         "ClusterId": "signaling",
         "Transforms": [
@@ -73,7 +69,7 @@
           { "RequestHeadersCopy": "true" }
         ]
       }
-    ],
+    },
     "Clusters": {
       "chat": {
         "Destinations": {
