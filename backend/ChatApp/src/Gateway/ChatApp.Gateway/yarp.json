@@ -51,7 +51,7 @@
       },
       "ws-chat": {
         "Match": {
-          "Path": "/ws/chat"
+          "Path": "/ws/chat/{**catch-all}"
         },
         "ClusterId": "delivery",
         "Transforms": [

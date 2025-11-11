@@ -4,7 +4,7 @@ using System.Security.Claims;
 
 namespace DeliveryService.Api.Hubs
 {
-    [Authorize]
+    //[Authorize]
     public class ChatHub : Hub
     {
         public override async Task OnConnectedAsync()
