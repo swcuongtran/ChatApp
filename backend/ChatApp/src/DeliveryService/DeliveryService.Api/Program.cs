@@ -21,8 +21,8 @@ builder.Services
         options.RequireHttpsMetadata = false;
         options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
         {
-            ValidateIssuer = true,
-            ValidateAudience = true,
+            ValidateIssuer = false,
+            ValidateAudience = false,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = false,
             NameClaimType = System.Security.Claims.ClaimTypes.NameIdentifier
@@ -64,15 +64,14 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapHub<ChatHub>("/ws/chat");
 
 app.MapHealthChecks("/health");
 
-app.UseHttpsRedirection();
-
-app.UseAuthorization();
 
 app.MapControllers();
 
+app.UseHttpsRedirection();
 app.Run();
