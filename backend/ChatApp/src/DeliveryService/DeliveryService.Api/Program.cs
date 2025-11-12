@@ -19,14 +19,28 @@ builder.Services
         options.Authority = configuration["JWT_AUTHORITY"];
         options.Audience = configuration["JWT_AUDIENCE"];
         options.RequireHttpsMetadata = false;
+        options.BackchannelHttpHandler = new HttpClientHandler
+        {
+            ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+        };
         options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
         {
-            ValidateIssuer = false,
-            ValidateAudience = false,
+            ValidateIssuer = true,
+            ValidIssuers = new[]
+            {
+                options.Authority,
+                "http://localhost:8082/realms/chatapp" 
+            },
+            ValidateAudience = true,
+            ValidAudiences = new[]
+            {
+                configuration["JWT_AUDIENCE"] ?? "chatapp-api", 
+                "account" 
+            },
             ValidateLifetime = true,
-            ValidateIssuerSigningKey = false,
+            ValidateIssuerSigningKey = true,
             NameClaimType = System.Security.Claims.ClaimTypes.NameIdentifier
-        }; 
+        };
         options.Events = new JwtBearerEvents
         {
             OnMessageReceived = context =>
@@ -46,6 +60,7 @@ builder.Services
 builder.Services.AddHealthChecks();
 
 builder.Services.AddSignalR()
+    //.AddMessagePackProtocol();
     .AddJsonProtocol();
 builder.Services.AddAuthorization();
 builder.Services.AddSingleton<IConnectionMapping, ConnectionMapping>();
@@ -73,5 +88,5 @@ app.MapHealthChecks("/health");
 
 app.MapControllers();
 
-app.UseHttpsRedirection();
+//app.UseHttpsRedirection();
 app.Run();

@@ -1,11 +1,10 @@
-﻿using Confluent.Kafka;
+﻿using BuildingBlock.Messaging;
+using Confluent.Kafka;
 using Contracts;
 using Contracts.Chat;
 using DeliveryService.Api.Hubs;
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.AspNetCore.SignalR.Client;
 using System.Text.Json;
-using BuildingBlock.Messaging; // Cần thêm namespace này
 
 namespace DeliveryService.Api.Workers
 {
@@ -26,10 +25,11 @@ namespace DeliveryService.Api.Workers
         protected override Task ExecuteAsync(CancellationToken stoppingToken)
         {
             _logger.LogInformation("Kafka Message Consumer running.");
-            return Task.Run(() => StartConsumer(stoppingToken), stoppingToken);
+           
+            return StartConsumer(stoppingToken);
         }
 
-        private void StartConsumer(CancellationToken stoppingToken)
+        private async Task StartConsumer(CancellationToken stoppingToken)
         {
             var config = new ConsumerConfig
             {
@@ -43,6 +43,7 @@ namespace DeliveryService.Api.Workers
                 .SetErrorHandler((_, e) => _logger.LogError("Kafka Error: {Reason}", e.Reason))
                 .SetLogHandler((_, log) => _logger.LogDebug("Kafka Log: {Message}", log.Message))
                 .Build();
+
             consumer.Subscribe(Topics.ChatMessageCreated);
             _logger.LogInformation("Kafka Consumer subscribed to topic {Topic}", Topics.ChatMessageCreated);
 
@@ -52,38 +53,53 @@ namespace DeliveryService.Api.Workers
             {
                 while (!stoppingToken.IsCancellationRequested)
                 {
-                    var consumeResult = consumer.Consume(stoppingToken);
-                    var jsonPayload = consumeResult.Message.Value;
-
                     try
                     {
-                        
-                        var envelope = JsonSerializer.Deserialize<IntegrationEvent<ChatMessageCreatedV1>>(jsonPayload, jsonSerializerOptions);
+                        var consumeResult = consumer.Consume(stoppingToken);
+                        var jsonPayload = consumeResult.Message.Value;
 
-                        if (envelope == null || envelope.Data == null)
+                        try
                         {
-                            _logger.LogError("Failed to deserialize Kafka message or Data is null: {Payload}", jsonPayload);
-                            continue;
+                            var envelope = JsonSerializer.Deserialize<IntegrationEvent<ChatMessageCreatedV1>>(jsonPayload, jsonSerializerOptions);
+
+                            if (envelope == null || envelope.Data == null)
+                            {
+                                _logger.LogError("Failed to deserialize Kafka message or Data is null: {Payload}", jsonPayload);
+                                consumer.Commit(consumeResult); 
+                                continue;
+                            }
+
+                            var messageEvent = envelope.Data;
+                            var conversationId = messageEvent.ConversationId;
+
+                            
+                            await _hubContext.Clients
+                                .Group(conversationId)
+                                .SendAsync("ReceiveMessage", messageEvent, stoppingToken);
+
+                            _logger.LogInformation("Dispatched message {MessageId} to group {ConvId}",
+                                messageEvent.MessageId, conversationId);
+
+                            
+                            consumer.Commit(consumeResult);
                         }
-
-                        
-                        var messageEvent = envelope.Data;
-                        var conversationId = messageEvent.ConversationId;
-
-                        _hubContext.Clients
-                            .Group(conversationId)
-                            .SendAsync("ReceiveMessage", messageEvent, stoppingToken);
-
-                        _logger.LogInformation("Dispatched message {MessageId} to group {ConvId}",
-                            messageEvent.MessageId, conversationId);
-
-                        consumer.Commit(consumeResult);
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Error processing Kafka message logic: {Payload}", jsonPayload);
+                        }
                     }
-                    catch (Exception ex)
+                    catch (ConsumeException ex)
                     {
-                        
-                        _logger.LogError(ex, "Error processing Kafka message: {Payload}", jsonPayload);
-                       
+                        if (!ex.Error.IsFatal)
+                        {
+                            _logger.LogWarning("Kafka consumer non-fatal error (e.g. Topic not created yet): {Reason}. Retrying in 1s...", ex.Error.Reason);
+                            await Task.Delay(1000, stoppingToken);
+                        }
+                        else
+                        {
+                            _logger.LogCritical(ex, "Fatal Kafka consumer error.");
+                            throw; 
+                        }
                     }
                 }
             }
