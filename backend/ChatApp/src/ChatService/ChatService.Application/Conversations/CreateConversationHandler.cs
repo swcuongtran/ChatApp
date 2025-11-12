@@ -105,6 +105,7 @@ namespace ChatService.Application.Conversations
             };
 
             await _outbox.AddAsync(outbox, cancellationToken);
+            await _repo.SaveChangesAsync(cancellationToken);
 
             return conv.Id;
         }

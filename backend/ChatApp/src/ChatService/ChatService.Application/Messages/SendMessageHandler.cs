@@ -82,6 +82,7 @@ namespace ChatService.Application.Messages
 
             await _outbox.AddAsync(outbox, cancellationToken);
             await _repo.UpdateAsync(conv);
+            await _repo.SaveChangesAsync(cancellationToken);
 
             return messageId;
         }

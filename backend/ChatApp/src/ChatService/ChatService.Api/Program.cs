@@ -56,6 +56,7 @@ builder.Services.AddScoped<CreateConversationHandler>();
 builder.Services.AddScoped<RenameConversationHandler>();
 builder.Services.AddScoped<AddConversationMemberHandler>();
 builder.Services.AddScoped<RemoveConversationMemberHandler>();
+builder.Services.AddScoped<GetConversationsHandler>();
 
 builder.Services.AddScoped<IOutboxStore, EfOutboxStore>();
 builder.Services.AddHostedService<OutboxDispatcher>();

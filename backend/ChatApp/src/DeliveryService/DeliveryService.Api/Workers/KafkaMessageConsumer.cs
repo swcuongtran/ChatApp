@@ -4,6 +4,7 @@ using Contracts;
 using Contracts.Chat;
 using DeliveryService.Api.Hubs;
 using Microsoft.AspNetCore.SignalR;
+using System.Diagnostics;
 using System.Text.Json;
 
 namespace DeliveryService.Api.Workers
@@ -13,6 +14,7 @@ namespace DeliveryService.Api.Workers
         private readonly ILogger<KafkaMessageConsumer> _logger;
         private readonly KafkaOptions _kafkaOptions;
         private readonly IHubContext<ChatHub> _hubContext;
+        private static readonly ActivitySource _activitySource = new ActivitySource("DeliveryService");
 
         public KafkaMessageConsumer(ILogger<KafkaMessageConsumer> logger, IConfiguration configuration, IHubContext<ChatHub> hubContext)
         {
@@ -56,6 +58,13 @@ namespace DeliveryService.Api.Workers
                     try
                     {
                         var consumeResult = consumer.Consume(stoppingToken);
+                        var headers = consumeResult.Message.Headers;
+
+                       
+                        using var activity = _activitySource.StartActivity("ProcessKafkaMessage", ActivityKind.Consumer);
+
+                        activity?.SetTag("messaging.system", "kafka");
+                        activity?.SetTag("messaging.destination", Topics.ChatMessageCreated);
                         var jsonPayload = consumeResult.Message.Value;
 
                         try
@@ -82,10 +91,13 @@ namespace DeliveryService.Api.Workers
 
                             
                             consumer.Commit(consumeResult);
+                            activity?.SetTag("signalr.group", envelope.Data.ConversationId);
+                            activity?.SetStatus(ActivityStatusCode.Ok);
                         }
                         catch (Exception ex)
                         {
                             _logger.LogError(ex, "Error processing Kafka message logic: {Payload}", jsonPayload);
+                            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
                         }
                     }
                     catch (ConsumeException ex)

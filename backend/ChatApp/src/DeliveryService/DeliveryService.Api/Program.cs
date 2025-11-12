@@ -3,6 +3,9 @@ using DeliveryService.Api.Connection;
 using DeliveryService.Api.Hubs;
 using DeliveryService.Api.Workers;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,6 +14,22 @@ var builder = WebApplication.CreateBuilder(args);
 var configuration = builder.Configuration;
 
 builder.Services.Configure<KafkaOptions>(configuration.GetSection(KafkaOptions.Kafka));
+var serviceName = "DeliveryService";
+var resource = ResourceBuilder.CreateDefault().AddService(serviceName);
+var activitySource = new System.Diagnostics.ActivitySource(serviceName);
+builder.Services.AddSingleton(activitySource);
+
+builder.Services.AddOpenTelemetry()
+   .ConfigureResource(r => r.AddService(serviceName))
+   .WithMetrics(m => m
+       .SetResourceBuilder(resource)
+       .AddAspNetCoreInstrumentation()
+       .AddOtlpExporter())
+   .WithTracing(t => t
+       .SetResourceBuilder(resource)
+       .AddSource(serviceName) 
+       .AddAspNetCoreInstrumentation()
+       .AddOtlpExporter());
 
 builder.Services
     .AddAuthentication(Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme)
@@ -56,6 +75,8 @@ builder.Services
             }
         };
     });
+
+
 
 builder.Services.AddHealthChecks();
 

@@ -86,6 +86,7 @@ namespace ChatService.Application.Conversations
 
             // 7. Save changes
             await _repo.UpdateAsync(conv, cancellationToken);
+            await _repo.SaveChangesAsync(cancellationToken);
 
             return Unit.Value;
         }
