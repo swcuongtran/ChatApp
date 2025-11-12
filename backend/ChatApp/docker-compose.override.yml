@@ -14,6 +14,9 @@ services:
       Auth__Authority: "http://keycloak:8080/realms/chatapp"
       Auth__Audience: "account"
       Auth__RequireHttpsMetadata: "false"
+      OTEL_SERVICE_NAME: "gateway"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4317"
+      OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
     ports:
       - "8081:8080"
     volumes:
@@ -42,6 +45,9 @@ services:
       KAFKA_CLIENT_ID: chatservice
       JWT_AUTHORITY: "http://keycloak:8080/realms/chatapp"
       JWT_AUDIENCE: "account"
+      OTEL_SERVICE_NAME: "chatservice"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4317"
+      OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
     expose:
       - "8080"
     volumes:
@@ -64,7 +70,10 @@ services:
       Kafka:BootstrapServers: kafka:9092
       Kafka:GroupId: delivery-service-group
       JWT_AUTHORITY: "http://keycloak:8080/realms/chatapp" 
-      JWT_AUDIENCE: "account" 
+      JWT_AUDIENCE: "account"
+      OTEL_SERVICE_NAME: "deliveryservice"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4317"
+      OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
     expose:
       - "8080"
     volumes:
@@ -93,6 +102,18 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - chatnet
+
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true 
+    ports:
+      - "16686:16686" 
+      - "4317:4317"   
+      - "4318:4318"   
     networks:
       - chatnet
 

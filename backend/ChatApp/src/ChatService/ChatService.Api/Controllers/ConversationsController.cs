@@ -1,6 +1,5 @@
 ﻿using ChatService.Api.DTOs;
 using ChatService.Application.Conversations;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Utils.Correlation;
 
@@ -15,19 +14,22 @@ namespace ChatService.Api.Controllers
         private readonly RenameConversationHandler _renameHandler;
         private readonly AddConversationMemberHandler _addHandler;
         private readonly RemoveConversationMemberHandler _removeHandler;
+        private readonly GetConversationsHandler _getConversationsHandler;
 
         public ConversationsController(
             ICorrelationIdProvider correlationProvider,
             CreateConversationHandler createHandler,
             RenameConversationHandler renameHandler,
             AddConversationMemberHandler addHandler,
-            RemoveConversationMemberHandler removeHandler)
+            RemoveConversationMemberHandler removeHandler,
+            GetConversationsHandler getConversationsHandler)
         {
             _correlationProvider = correlationProvider;
             _createHandler = createHandler;
             _renameHandler = renameHandler;
             _addHandler = addHandler;
             _removeHandler = removeHandler;
+            _getConversationsHandler = getConversationsHandler;
         }
 
         [HttpPost]
@@ -107,6 +109,18 @@ namespace ChatService.Api.Controllers
 
             await _removeHandler.Handle(command, cancellationToken);
             return Ok();
+        }
+        [HttpGet]
+        public async Task<IActionResult> GetList([FromHeader(Name = "X-User-Id")] string userId, CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                return Unauthorized("X-User-Id header is required.");
+            }
+
+            var query = new GetConversationsQuery(userId);
+            var result = await _getConversationsHandler.Handle(query, cancellationToken);
+            return Ok(result);
         }
     }
 }

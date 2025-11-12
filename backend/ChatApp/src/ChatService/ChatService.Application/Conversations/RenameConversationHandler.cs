@@ -75,6 +75,7 @@ namespace ChatService.Application.Conversations
             await _outbox.AddAsync(outbox, cancellationToken);
 
             await _repo.UpdateAsync(conv, cancellationToken);
+            await _repo.SaveChangesAsync(cancellationToken);
             return Unit.Value;
         }
     }

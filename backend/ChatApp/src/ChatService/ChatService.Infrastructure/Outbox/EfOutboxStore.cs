@@ -14,7 +14,6 @@ namespace ChatService.Infrastructure.Outbox
         public async Task AddAsync(OutboxMessage message, CancellationToken cancellationToken = default)
         {
             await _db.OutboxMessages.AddAsync(message, cancellationToken);
-            await _db.SaveChangesAsync(cancellationToken);
         }
 
         public async Task<IReadOnlyList<OutboxMessage>> DequeueBatchAsync(int maxCount, CancellationToken cancellationToken = default)
