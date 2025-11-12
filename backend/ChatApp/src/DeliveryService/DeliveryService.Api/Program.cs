@@ -12,36 +12,50 @@ var configuration = builder.Configuration;
 
 builder.Services.Configure<KafkaOptions>(configuration.GetSection(KafkaOptions.Kafka));
 
-//builder.Services
-//    .AddAuthentication(Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme)
-//    .AddJwtBearer(options =>
-//    {
-//        options.Authority = configuration["JWT_AUTHORITY"];
-//        options.Audience = configuration["JWT_AUDIENCE"];
-//        options.RequireHttpsMetadata = false;
-//        options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
-//        {
-//            ValidateIssuer = false,
-//            ValidateAudience = false,
-//            ValidateLifetime = true,
-//            ValidateIssuerSigningKey = false,
-//            NameClaimType = System.Security.Claims.ClaimTypes.NameIdentifier
-//        };
-//        options.Events = new JwtBearerEvents
-//        {
-//            OnMessageReceived = context =>
-//            {
-//                var accessToken = context.Request.Query["access_token"];
-//                var path = context.HttpContext.Request.Path;
+builder.Services
+    .AddAuthentication(Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.Authority = configuration["JWT_AUTHORITY"];
+        options.Audience = configuration["JWT_AUDIENCE"];
+        options.RequireHttpsMetadata = false;
+        options.BackchannelHttpHandler = new HttpClientHandler
+        {
+            ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+        };
+        options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuers = new[]
+            {
+                options.Authority,
+                "http://localhost:8082/realms/chatapp" 
+            },
+            ValidateAudience = true,
+            ValidAudiences = new[]
+            {
+                configuration["JWT_AUDIENCE"] ?? "chatapp-api", 
+                "account" 
+            },
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            NameClaimType = System.Security.Claims.ClaimTypes.NameIdentifier
+        };
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
 
-//                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/ws/chat"))
-//                {
-//                    context.Token = accessToken;
-//                }
-//                return Task.CompletedTask;
-//            }
-//        };
-//    });
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/ws/chat"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            }
+        };
+    });
 
 builder.Services.AddHealthChecks();
 
@@ -64,7 +78,7 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-//app.UseAuthentication();
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapHub<ChatHub>("/ws/chat");
