@@ -85,6 +85,31 @@ services:
         condition: service_healthy
     networks:
       - chatnet
+  
+  searchservice.api:
+    build:
+        context: .
+        dockerfile: ./src/SearchService/SearchService.Api/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_HTTP_PORTS: "8080"
+      Elasticsearch__Uri: "http://elasticsearch:9200"
+      Kafka__BootstrapServers: "kafka:9092"
+      Kafka__GroupId: "search-service-group"
+      OTEL_SERVICE_NAME: "SearchService"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4317"
+      OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
+      JWT_AUTHORITY: "http://keycloak:8080/realms/chatapp"
+      JWT_AUDIENCE: "account"
+    expose:
+      - "8080"
+    depends_on:
+      elasticsearch:
+        condition: service_started
+      kafka:
+        condition: service_healthy
+    networks:
+      - chatnet
 
 
   keycloak:
@@ -190,6 +215,31 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.10
+    container_name: chatapp-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m" 
+      - xpack.security.enabled=false
+    ports:
+      - "9200:9200"
+    networks:
+      - chatnet
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.17.10
+    container_name: chatapp-kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_started
+    networks:
+      - chatnet
             
 volumes:
   pgdata:

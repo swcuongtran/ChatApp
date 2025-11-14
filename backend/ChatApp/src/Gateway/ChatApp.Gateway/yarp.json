@@ -68,6 +68,19 @@
           { "RequestHeaderOriginalHost": "true" },
           { "RequestHeadersCopy": "true" }
         ]
+      },
+      "api-search": {
+        "ClusterId": "search",
+        "Match": {
+          "Path": "/api/search/{**catch-all}"
+        },
+        "Transforms": [
+          { "RequestHeaderOriginalHost": "true" },
+          {
+            "RequestHeader": "X-Correlation-Id",
+            "Set": "{X-Correlation-Id}"
+          }
+        ]
       }
     },
     "Clusters": {
@@ -94,6 +107,11 @@
       "signaling": {
         "Destinations": {
           "d1": { "Address": "http://signalingservice.api:8080" }
+        }
+      },
+      "search": {
+        "Destinations": {
+          "d1": { "Address": "http://searchservice.api:8080" }
         }
       }
     }
