@@ -5,6 +5,7 @@ using Contracts.Chat;
 using DeliveryService.Api.Hubs;
 using Microsoft.AspNetCore.SignalR;
 using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
 
 namespace DeliveryService.Api.Workers
@@ -60,8 +61,24 @@ namespace DeliveryService.Api.Workers
                         var consumeResult = consumer.Consume(stoppingToken);
                         var headers = consumeResult.Message.Headers;
 
-                       
-                        using var activity = _activitySource.StartActivity("ProcessKafkaMessage", ActivityKind.Consumer);
+                        ActivityContext parentContext = default; 
+
+                       if (consumeResult.Message.Headers.TryGetLastBytes("x-trace-id", out var traceIdBytes))
+                        {
+                            var traceIdStr = Encoding.UTF8.GetString(traceIdBytes);
+                            try
+                            {
+                                var traceId = ActivityTraceId.CreateFromString(traceIdStr.AsSpan());
+
+                                parentContext = new ActivityContext(traceId, ActivitySpanId.CreateRandom(), ActivityTraceFlags.Recorded);
+                            }
+                            catch
+                            {
+                                _logger.LogDebug("Invalid TraceId format from Kafka header: {TraceId}", traceIdStr);
+                            }
+                        }
+
+                        using var activity = _activitySource.StartActivity("ProcessKafkaMessage", ActivityKind.Consumer, parentContext);
 
                         activity?.SetTag("messaging.system", "kafka");
                         activity?.SetTag("messaging.destination", Topics.ChatMessageCreated);
