@@ -58,5 +58,15 @@ namespace ChatService.Infrastructure.Persistence.Repositories
         .OrderByDescending(c => c.Messages.Max(m => m.SentAt))
         .ToListAsync(ct);
         }
+        public async Task<IReadOnlyList<Message>> GetMessagesAsync(string conversationId, int skip, int take, CancellationToken ct = default)
+        {
+            return await _dbContext.messages
+                .AsNoTracking()
+                .Where(m => m.ConversationId == conversationId)
+                .OrderByDescending(m => m.SentAt) 
+                .Skip(skip)
+                .Take(take)
+                .ToListAsync(ct);
+        }
     }
 }
