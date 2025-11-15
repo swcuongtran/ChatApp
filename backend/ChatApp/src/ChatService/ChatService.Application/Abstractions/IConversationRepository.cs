@@ -13,5 +13,6 @@ namespace ChatService.Application.Abstractions
         Task<Conversation?> GetByIdAsync(string conversationId, CancellationToken ct = default);
         Task<bool> ExistsAsync(string conversationId, CancellationToken ct = default);
         Task<IReadOnlyList<Conversation>> GetByUserIdAsync(string userId, CancellationToken ct = default);
+        Task<IReadOnlyList<Message>> GetMessagesAsync(string conversationId, int skip, int take, CancellationToken ct = default);
     }
 }

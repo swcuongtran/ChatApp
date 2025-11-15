@@ -72,11 +72,31 @@ if (app.Environment.IsDevelopment())
 }
 
 var elastic = app.Services.GetRequiredService<IElasticClient>();
-if (!elastic.Indices.Exists("chat_messages").Exists)
+using (var scope = app.Services.CreateScope())
 {
-    elastic.Indices.Create("chat_messages", c => c
-        .Map<SearchService.Api.Model.MessageDoc>(m => m.AutoMap())
-    );
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    var esClient = scope.ServiceProvider.GetRequiredService<IElasticClient>();
+
+    for (int i = 0; i < 10; i++)
+    {
+        try
+        {
+            var exists = esClient.Indices.Exists("chat_messages");
+            if (!exists.IsValid && exists.ServerError == null) throw new Exception("ES not ready");
+
+            if (!exists.Exists)
+            {
+                logger.LogInformation("Creating Index...");
+                esClient.Indices.Create("chat_messages", c => c.Map<SearchService.Api.Model.MessageDoc>(m => m.AutoMap()));
+            }
+            break; 
+        }
+        catch
+        {
+            logger.LogWarning("Waiting for Elasticsearch... ({Attempt}/10)", i + 1);
+            System.Threading.Thread.Sleep(5000);
+        }
+    }
 }
 app.UseHttpsRedirection();
 
