@@ -119,9 +119,9 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_HTTP_PORTS: "8080"
     
-      AWS__Region: ${AWS_REGION}
-      AWS__AccessKey: ${AWS_ACCESS_KEY_ID}
-      AWS__SecretKey: ${AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: ${AWS_REGION}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       S3__BucketName: ${S3_BUCKET_NAME}
       
       ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=chat_files;Username=chat;Password=chat"
