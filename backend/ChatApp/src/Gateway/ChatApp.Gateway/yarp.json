@@ -49,30 +49,10 @@
           }
         ]
       },
-      "ws-chat": {
+      "api-files": {
+        "ClusterId": "file",
         "Match": {
-          "Path": "/ws/chat/{**catch-all}"
-        },
-        "ClusterId": "delivery",
-        "Transforms": [
-          { "RequestHeaderOriginalHost": "true" },
-          {
-            "RequestHeadersCopy": "true"
-          }
-        ]
-      },
-      "ws-call": {
-        "Match": { "Path": "/ws/call" },
-        "ClusterId": "signaling",
-        "Transforms": [
-          { "RequestHeaderOriginalHost": "true" },
-          { "RequestHeadersCopy": "true" }
-        ]
-      },
-      "api-search": {
-        "ClusterId": "search",
-        "Match": {
-          "Path": "/api/search/{**catch-all}"
+          "Path": "/api/files/{**catch-all}"
         },
         "Transforms": [
           { "RequestHeaderOriginalHost": "true" },
@@ -83,36 +63,74 @@
         ]
       }
     },
-    "Clusters": {
-      "chat": {
-        "Destinations": {
-          "d1": { "Address": "http://chatservice.api:8080" }
-        }
+    "ws-chat": {
+      "Match": {
+        "Path": "/ws/chat/{**catch-all}"
       },
-      "history": {
-        "Destinations": {
-          "d1": { "Address": "http://historyservice.api:8080" }
+      "ClusterId": "delivery",
+      "Transforms": [
+        { "RequestHeaderOriginalHost": "true" },
+        {
+          "RequestHeadersCopy": "true"
         }
+      ]
+    },
+    "ws-call": {
+      "Match": { "Path": "/ws/call" },
+      "ClusterId": "signaling",
+      "Transforms": [
+        { "RequestHeaderOriginalHost": "true" },
+        { "RequestHeadersCopy": "true" }
+      ]
+    },
+    "api-search": {
+      "ClusterId": "search",
+      "Match": {
+        "Path": "/api/search/{**catch-all}"
       },
-      "presence": {
-        "Destinations": {
-          "d1": { "Address": "http://presenceservice.api:8080" }
+      "Transforms": [
+        { "RequestHeaderOriginalHost": "true" },
+        {
+          "RequestHeader": "X-Correlation-Id",
+          "Set": "{X-Correlation-Id}"
         }
-      },
-      "delivery": {
-        "Destinations": {
-          "d1": { "Address": "http://deliveryservice.api:8080" }
-        }
-      },
-      "signaling": {
-        "Destinations": {
-          "d1": { "Address": "http://signalingservice.api:8080" }
-        }
-      },
-      "search": {
-        "Destinations": {
-          "d1": { "Address": "http://searchservice.api:8080" }
-        }
+      ]
+    }
+  },
+  "Clusters": {
+    "chat": {
+      "Destinations": {
+        "d1": { "Address": "http://chatservice.api:8080" }
+      }
+    },
+    "history": {
+      "Destinations": {
+        "d1": { "Address": "http://historyservice.api:8080" }
+      }
+    },
+    "presence": {
+      "Destinations": {
+        "d1": { "Address": "http://presenceservice.api:8080" }
+      }
+    },
+    "delivery": {
+      "Destinations": {
+        "d1": { "Address": "http://deliveryservice.api:8080" }
+      }
+    },
+    "signaling": {
+      "Destinations": {
+        "d1": { "Address": "http://signalingservice.api:8080" }
+      }
+    },
+    "search": {
+      "Destinations": {
+        "d1": { "Address": "http://searchservice.api:8080" }
+      }
+    },
+    "file": {
+      "Destinations": {
+        "d1": { "Address": "http://fileservice.api:8080" }
       }
     }
   }

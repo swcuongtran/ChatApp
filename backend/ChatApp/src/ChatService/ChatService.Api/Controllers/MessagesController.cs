@@ -14,13 +14,11 @@ namespace ChatService.Api.Controllers
         private readonly SendMessageHandler _handler;
         private readonly ICorrelationIdProvider _correlationIdProvider;
         private readonly ILogger<MessagesController> _logger;
-        private readonly GetMessagesHandler _getMessagesHandler;
-        public MessagesController(SendMessageHandler handler, ILogger<MessagesController> logger, ICorrelationIdProvider correlationIdProvider, GetMessagesHandler getMessagesHandler)
+        public MessagesController(SendMessageHandler handler, ILogger<MessagesController> logger, ICorrelationIdProvider correlationIdProvider)
         {
             _handler = handler;
             _logger = logger;
             _correlationIdProvider = correlationIdProvider;
-            _getMessagesHandler = getMessagesHandler;
         }
         [HttpPost("send")]
         public async Task<IActionResult> SendMessage([FromBody] SendMessageRequest request, CancellationToken cancellationToken)
@@ -43,12 +41,6 @@ namespace ChatService.Api.Controllers
             return BadRequest("Failed to send message.");
         }
 
-        [HttpGet("{id}/messages")]
-        public async Task<IActionResult> GetMessages(string id, [FromQuery] int skip = 0, [FromQuery] int take = 20, CancellationToken cancellationToken = default)
-        {
-            var query = new GetMessagesQuery(id, skip, take);
-            var result = await _getMessagesHandler.Handle(query, cancellationToken);
-            return Ok(result);
-        }
+        
     }
 }

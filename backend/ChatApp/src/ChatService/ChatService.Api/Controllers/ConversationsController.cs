@@ -1,5 +1,6 @@
 ﻿using ChatService.Api.DTOs;
 using ChatService.Application.Conversations;
+using ChatService.Application.Messages;
 using Microsoft.AspNetCore.Mvc;
 using Utils.Correlation;
 
@@ -15,6 +16,7 @@ namespace ChatService.Api.Controllers
         private readonly AddConversationMemberHandler _addHandler;
         private readonly RemoveConversationMemberHandler _removeHandler;
         private readonly GetConversationsHandler _getConversationsHandler;
+        private readonly GetMessagesHandler _getMessagesHandler;
 
         public ConversationsController(
             ICorrelationIdProvider correlationProvider,
@@ -22,7 +24,8 @@ namespace ChatService.Api.Controllers
             RenameConversationHandler renameHandler,
             AddConversationMemberHandler addHandler,
             RemoveConversationMemberHandler removeHandler,
-            GetConversationsHandler getConversationsHandler)
+            GetConversationsHandler getConversationsHandler,
+            GetMessagesHandler getMessagesHandler)
         {
             _correlationProvider = correlationProvider;
             _createHandler = createHandler;
@@ -30,6 +33,7 @@ namespace ChatService.Api.Controllers
             _addHandler = addHandler;
             _removeHandler = removeHandler;
             _getConversationsHandler = getConversationsHandler;
+            _getMessagesHandler = getMessagesHandler;
         }
 
         [HttpPost]
@@ -120,6 +124,13 @@ namespace ChatService.Api.Controllers
 
             var query = new GetConversationsQuery(userId);
             var result = await _getConversationsHandler.Handle(query, cancellationToken);
+            return Ok(result);
+        }
+        [HttpGet("{id}/messages")]
+        public async Task<IActionResult> GetMessages(string id, [FromQuery] int skip = 0, [FromQuery] int take = 20, CancellationToken cancellationToken = default)
+        {
+            var query = new GetMessagesQuery(id, skip, take);
+            var result = await _getMessagesHandler.Handle(query, cancellationToken);
             return Ok(result);
         }
     }
