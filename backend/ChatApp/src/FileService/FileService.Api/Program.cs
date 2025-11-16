@@ -24,7 +24,8 @@ builder.Services.AddDbContext<FileDbContext>(o => o.UseNpgsql(builder.Configurat
 builder.Services.AddScoped<IOutboxStore, EfOutboxStore>();
 builder.Services.AddHostedService<OutboxDispatcher>();
 
-builder.Services.AddDefaultAWSOptions(builder.Configuration.GetAWSOptions());
+var awsOptions = builder.Configuration.GetAWSOptions();
+builder.Services.AddDefaultAWSOptions(awsOptions);
 builder.Services.AddAWSService<IAmazonS3>();
 builder.Services.AddScoped<IStorageService, S3StorageService>();
 
