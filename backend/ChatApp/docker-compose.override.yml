@@ -111,6 +111,37 @@ services:
     networks:
       - chatnet
 
+  fileservice.api:
+    build:
+        context: .
+        dockerfile: src/FileService/FileService.Api/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_HTTP_PORTS: "8080"
+    
+      AWS__Region: ${AWS_REGION}
+      AWS__AccessKey: ${AWS_ACCESS_KEY_ID}
+      AWS__SecretKey: ${AWS_SECRET_ACCESS_KEY}
+      S3__BucketName: ${S3_BUCKET_NAME}
+      
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=chat_files;Username=chat;Password=chat"
+      Kafka__BootstrapServers: "kafka:9092"
+      
+
+      JWT_AUTHORITY: "http://keycloak:8080/realms/chatapp"
+      JWT_AUDIENCE: "account"
+      OTEL_SERVICE_NAME: "FileService"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4317"
+      OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
+    expose:
+      - "8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - chatnet
 
   keycloak:
     image: quay.io/keycloak/keycloak:24.0.1
@@ -240,6 +271,7 @@ services:
         condition: service_started
     networks:
       - chatnet
+  
             
 volumes:
   pgdata:
