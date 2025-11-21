@@ -143,6 +143,28 @@ services:
     networks:
       - chatnet
 
+  analyticsservice.api:
+    build:
+        context: .
+        dockerfile: src/AnalyticsService/AnalyticsService.Api/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_HTTP_PORTS: "8080"
+      MONGO_CONNECTION_STRING: ${MONGO_CONNECTION_STRING}
+      MONGO_DB_NAME: ${MONGO_DB_NAME}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BROKERS}
+      JWT_AUTHORITY: "http://keycloak:8080/realms/chatapp"
+      JWT_AUDIENCE: "account"
+      OTEL_SERVICE_NAME: "analyticsservice"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4317"
+    expose:
+      - "8080"
+    depends_on:
+      - mongodb
+      - kafka
+    networks:
+      - chatnet
+
   keycloak:
     image: quay.io/keycloak/keycloak:24.0.1
     environment:
@@ -271,11 +293,22 @@ services:
         condition: service_started
     networks:
       - chatnet
+
+  mongodb:
+    image: mongo:latest
+    container_name: chatapp-mongodb
+    ports:
+      - "27017:27017" 
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - chatnet
   
             
 volumes:
   pgdata:
   pgadmindata:
+  mongo_data:
 
 networks:
   chatnet:
