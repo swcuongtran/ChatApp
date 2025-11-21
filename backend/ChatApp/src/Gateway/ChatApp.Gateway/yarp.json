@@ -19,6 +19,19 @@
           }
         ]
       },
+      "api-stats": {
+        "ClusterId": "stats",
+        "Match": {
+          "Path": "/api/stats/{**catch-all}"
+        },
+        "Transforms": [
+          { "RequestHeaderOriginalHost": "true" },
+          {
+            "RequestHeader": "X-Correlation-Id",
+            "Set": "{X-Correlation-Id}"
+          }
+        ]
+      },
       "api-history": {
         "Match": {
           "Path": "/api/history/{**catch-all}"
@@ -128,6 +141,11 @@
       "file": {
         "Destinations": {
           "d1": { "Address": "http://fileservice.api:8080" }
+        }
+      },
+      "stats": {
+        "Destinations": {
+          "d1": { "Address": "http://analyticsservice.api:8080" }
         }
       }
     }
