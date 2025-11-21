@@ -2,6 +2,7 @@
 using ChatService.Application.Conversations;
 using ChatService.Application.Messages;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 using Utils.Correlation;
 
 namespace ChatService.Api.Controllers
@@ -39,9 +40,30 @@ namespace ChatService.Api.Controllers
         [HttpPost]
         public async Task<IActionResult> CreateConversation([FromBody] CreateConversationRequest request, CancellationToken cancellationToken)
         {
+            // 1. FIX: Lấy ID người dùng từ Claim (Đã xác thực)
+            var actorUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrWhiteSpace(actorUserId))
+            {
+                return Unauthorized("Authentication required.");
+            }
+
+            var distinctMembers = new HashSet<string>(request.Members) { actorUserId };
+            var membersList = distinctMembers.ToList();
+
+            if (membersList[0] != actorUserId)
+            {
+                membersList.Remove(actorUserId);
+                membersList.Insert(0, actorUserId);
+            }
+
+            if (request.IsDirect && membersList.Count != 2)
+            {
+                throw new InvalidOperationException("Direct conversation requires exactly 2 distinct members.");
+            }
+
             var command = new CreateConversationCommand(
                 request.IsDirect,
-                request.Members,
+                membersList, 
                 request.Title,
                 request.IdempotencyKey,
                 _correlationProvider.TraceId,
@@ -53,17 +75,14 @@ namespace ChatService.Api.Controllers
         }
 
         [HttpPut("{id}/rename")]
-        public async Task<IActionResult> RenameConversation(string id, [FromBody] RenameConversationRequest request, [FromHeader(Name = "X-User-Id")] string actorUserId, CancellationToken cancellationToken)
+        public async Task<IActionResult> RenameConversation(string id, [FromBody] RenameConversationRequest request, CancellationToken cancellationToken)
         {
-            // TODO: Lấy actorUserId từ JWT Claim thay vì Header
-            if (string.IsNullOrWhiteSpace(actorUserId))
-            {
-                return Unauthorized("X-User-Id header is required.");
-            }
+            var actorUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrWhiteSpace(actorUserId)) return Unauthorized("Authentication required.");
 
             var command = new RenameConversationCommand(
                 id,
-                actorUserId,
+                actorUserId, 
                 request.NewTitle,
                 _correlationProvider.TraceId,
                 _correlationProvider.CorrelationId
@@ -74,17 +93,14 @@ namespace ChatService.Api.Controllers
         }
 
         [HttpPost("{id}/members")]
-        public async Task<IActionResult> AddMembers(string id, [FromBody] UpdateMembersRequest request, [FromHeader(Name = "X-User-Id")] string actorUserId, CancellationToken cancellationToken)
+        public async Task<IActionResult> AddMembers(string id, [FromBody] UpdateMembersRequest request, CancellationToken cancellationToken)
         {
-            // TODO: Lấy actorUserId từ JWT Claim thay vì Header
-            if (string.IsNullOrWhiteSpace(actorUserId))
-            {
-                return Unauthorized("X-User-Id header is required.");
-            }
+            var actorUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrWhiteSpace(actorUserId)) return Unauthorized("Authentication required.");
 
             var command = new AddConversationMemberCommand(
                 id,
-                actorUserId,
+                actorUserId, // SỬ DỤNG ID ĐÃ XÁC THỰC
                 request.MemberUserIds,
                 _correlationProvider.TraceId,
                 _correlationProvider.CorrelationId
@@ -95,13 +111,10 @@ namespace ChatService.Api.Controllers
         }
 
         [HttpDelete("{id}/members")]
-        public async Task<IActionResult> RemoveMembers(string id, [FromBody] UpdateMembersRequest request, [FromHeader(Name = "X-User-Id")] string actorUserId, CancellationToken cancellationToken)
+        public async Task<IActionResult> RemoveMembers(string id, [FromBody] UpdateMembersRequest request, CancellationToken cancellationToken)
         {
-            // TODO: Lấy actorUserId từ JWT Claim thay vì Header
-            if (string.IsNullOrWhiteSpace(actorUserId))
-            {
-                return Unauthorized("X-User-Id header is required.");
-            }
+            var actorUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrWhiteSpace(actorUserId)) return Unauthorized("Authentication required.");
 
             var command = new RemoveConversationMemberCommand(
                 id,
@@ -115,12 +128,10 @@ namespace ChatService.Api.Controllers
             return Ok();
         }
         [HttpGet]
-        public async Task<IActionResult> GetList([FromHeader(Name = "X-User-Id")] string userId, CancellationToken cancellationToken)
+        public async Task<IActionResult> GetList(CancellationToken cancellationToken)
         {
-            if (string.IsNullOrWhiteSpace(userId))
-            {
-                return Unauthorized("X-User-Id header is required.");
-            }
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrWhiteSpace(userId)) return Unauthorized("Authentication required.");
 
             var query = new GetConversationsQuery(userId);
             var result = await _getConversationsHandler.Handle(query, cancellationToken);
@@ -129,6 +140,9 @@ namespace ChatService.Api.Controllers
         [HttpGet("{id}/messages")]
         public async Task<IActionResult> GetMessages(string id, [FromQuery] int skip = 0, [FromQuery] int take = 20, CancellationToken cancellationToken = default)
         {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrWhiteSpace(userId)) return Unauthorized("Authentication required.");
+
             var query = new GetMessagesQuery(id, skip, take);
             var result = await _getMessagesHandler.Handle(query, cancellationToken);
             return Ok(result);

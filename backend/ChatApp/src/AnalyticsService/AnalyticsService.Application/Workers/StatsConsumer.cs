@@ -1,5 +1,4 @@
-﻿
-using AnalyticsService.Infrastructure.MongoDb;
+﻿using AnalyticsService.Infrastructure.MongoDb;
 using AnalyticsService.Infrastructure.MongoDb.Documents;
 using BuildingBlock.Messaging;
 using Confluent.Kafka;
@@ -20,12 +19,14 @@ namespace AnalyticsService.Api.Workers
         private readonly IServiceProvider _serviceProvider;
         private readonly ILogger<StatsConsumer> _logger;
         private readonly string _kafkaBootstrapServers;
+
         public StatsConsumer(IServiceProvider serviceProvider, ILogger<StatsConsumer> logger, IConfiguration configuration)
         {
             _serviceProvider = serviceProvider;
             _logger = logger;
             _kafkaBootstrapServers = configuration["KAFKA_BOOTSTRAP_SERVERS"] ?? "kafka:9092";
         }
+
         protected async override Task ExecuteAsync(CancellationToken stoppingToken)
         {
             var conf = new ConsumerConfig
@@ -36,81 +37,120 @@ namespace AnalyticsService.Api.Workers
                 EnableAutoCommit = false
             };
             using var consumer = new ConsumerBuilder<string, string>(conf).Build();
+
             consumer.Subscribe(new[] { Topics.ChatMessageCreated, Topics.AttachmentUploaded, Topics.ConversationCreated });
 
-            while (!stoppingToken.IsCancellationRequested)
+            _logger.LogInformation("StatsConsumer subscribed and running.");
+
+            try // Khối try-catch chính: Bắt lỗi khi service tắt máy
             {
-                try
+                while (!stoppingToken.IsCancellationRequested)
                 {
-                    var cr = consumer.Consume(stoppingToken);
-
-                    using var scope = _serviceProvider.CreateScope();
-                    var dbContext = scope.ServiceProvider.GetRequiredService<IMongoDbContext>();
-
-                    var today = DateTime.UtcNow.Date;
-                    var dateId = today.ToString("yyyy-MM-dd");
-
-                    var globalCollection = dbContext.DailyStats;
-                    var userStatCollection = dbContext.UserDailyStats;
-
-                    var globalFilter = Builders<DailyStatDocument>.Filter.Eq(s => s.Id, dateId);
-                    UpdateDefinition<DailyStatDocument> globalUpdate = null!;
-
-                    string senderId = string.Empty;
-
-                    if (cr.Topic == Topics.ChatMessageCreated)
+                    try
                     {
-                        var envelope = JsonSerializer.Deserialize<IntegrationEvent<ChatMessageCreatedV1>>(cr.Message.Value)!;
-                        senderId = envelope.Data.SenderId; 
+                        // Lệnh chặn (Blocking call) - dòng này ném OperationCanceledException khi host tắt
+                        var cr = consumer.Consume(stoppingToken);
 
-                        globalUpdate = Builders<DailyStatDocument>.Update.Inc(s => s.TotalMessages, 1)
-                            .SetOnInsert(s => s.Date, today);
+                        using var scope = _serviceProvider.CreateScope();
+                        var dbContext = scope.ServiceProvider.GetRequiredService<IMongoDbContext>();
 
-                        var userStatId = $"{senderId}_{dateId}";
-                        var userFilter = Builders<DailyUserStatDocument>.Filter.Eq(s => s.Id, userStatId);
-                        var userUpdate = Builders<DailyUserStatDocument>.Update
-                            .Inc(s => s.MessagesSent, 1)
-                            .SetOnInsert(s => s.Date, today)
-                            .SetOnInsert(s => s.UserId, senderId);
+                        var today = DateTime.UtcNow.Date;
+                        var dateId = today.ToString("yyyy-MM-dd");
 
-                        await userStatCollection.UpdateOneAsync(userFilter, userUpdate, new UpdateOptions { IsUpsert = true }, stoppingToken);
+                        var globalCollection = dbContext.DailyStats;
+                        var userStatCollection = dbContext.UserDailyStats;
+
+                        var globalFilter = Builders<DailyStatDocument>.Filter.Eq(s => s.Id, dateId);
+                        UpdateDefinition<DailyStatDocument> globalUpdate = null!;
+
+                        // --- LOGIC AGGREGATION (Đã FIX NRE) ---
+                        if (cr.Topic == Topics.ChatMessageCreated)
+                        {
+                            var envelope = JsonSerializer.Deserialize<IntegrationEvent<ChatMessageCreatedV1>>(cr.Message.Value);
+
+                            if (envelope?.Data is not null)
+                            {
+                                string senderId = envelope.Data.SenderId;
+
+                                globalUpdate = Builders<DailyStatDocument>.Update.Inc(s => s.TotalMessages, 1)
+                                    .SetOnInsert(s => s.Date, today);
+
+                                var userStatId = $"{senderId}_{dateId}";
+                                var userFilter = Builders<DailyUserStatDocument>.Filter.Eq(d => d.Id, userStatId);
+                                var userUpdate = Builders<DailyUserStatDocument>.Update
+                                    .Inc(s => s.MessagesSent, 1)
+                                    .SetOnInsert(s => s.Date, today)
+                                    .SetOnInsert(s => s.UserId, senderId);
+
+                                await userStatCollection.UpdateOneAsync(userFilter, userUpdate, new UpdateOptions { IsUpsert = true }, stoppingToken);
+                            }
+                        }
+                        else if (cr.Topic == Topics.AttachmentUploaded)
+                        {
+                            var envelope = JsonSerializer.Deserialize<IntegrationEvent<AttachmentUploadedV1>>(cr.Message.Value);
+
+                            if (envelope?.Data is not null)
+                            {
+                                string senderId = envelope.Data.UploadedByUserId;
+                                var fileSize = envelope.Data.SizeInBytes;
+
+                                globalUpdate = Builders<DailyStatDocument>.Update
+                                    .Inc(s => s.TotalFiles, 1)
+                                    .Inc(s => s.TotalStorageBytes, fileSize)
+                                    .SetOnInsert(s => s.Date, today);
+
+                                var userStatId = $"{senderId}_{dateId}";
+                                var userFilter = Builders<DailyUserStatDocument>.Filter.Eq(d => d.Id, userStatId);
+                                var userUpdate = Builders<DailyUserStatDocument>.Update
+                                    .Inc(s => s.FilesUploaded, 1)
+                                    .Inc(s => s.StorageUsedBytes, fileSize)
+                                    .SetOnInsert(s => s.Date, today)
+                                    .SetOnInsert(s => s.UserId, senderId);
+
+                                await userStatCollection.UpdateOneAsync(userFilter, userUpdate, new UpdateOptions { IsUpsert = true }, stoppingToken);
+                            }
+                        }
+                        else if (cr.Topic == Topics.ConversationCreated)
+                        {
+                            globalUpdate = Builders<DailyStatDocument>.Update.Inc(s => s.NewConversations, 1)
+                                .SetOnInsert(s => s.Date, today);
+                        }
+                        else
+                        {
+                            consumer.Commit(cr);
+                            continue;
+                        }
+
+                        // Thực hiện Upsert Global Stats
+                        if (globalUpdate != null)
+                        {
+                            await globalCollection.UpdateOneAsync(globalFilter, globalUpdate, new UpdateOptions { IsUpsert = true }, stoppingToken);
+                        }
+
+                        consumer.Commit(cr);
                     }
-                    else if (cr.Topic == Topics.AttachmentUploaded)
+                    catch (OperationCanceledException)
                     {
-                        var envelope = JsonSerializer.Deserialize<IntegrationEvent<AttachmentUploadedV1>>(cr.Message.Value)!;
-                        senderId = envelope.Data.UploadedByUserId;
-                        var fileSize = envelope.Data.SizeInBytes;
-
-                        globalUpdate = Builders<DailyStatDocument>.Update
-                            .Inc(s => s.TotalFiles, 1)
-                            .Inc(s => s.TotalStorageBytes, fileSize)
-                            .SetOnInsert(s => s.Date, today);
-
-                        var userStatId = $"{senderId}_{dateId}";
-                        var userFilter = Builders<DailyUserStatDocument>.Filter.Eq(s => s.Id, userStatId);
-                        var userUpdate = Builders<DailyUserStatDocument>.Update
-                            .Inc(s => s.FilesUploaded, 1)
-                            .Inc(s => s.StorageUsedBytes, fileSize)
-                            .SetOnInsert(s => s.Date, today)
-                            .SetOnInsert(s => s.UserId, senderId);
-
-                        await userStatCollection.UpdateOneAsync(userFilter, userUpdate, new UpdateOptions { IsUpsert = true }, stoppingToken);
+                        // Bắt lỗi ngắt bên trong vòng lặp (thoát khỏi vòng lặp)
+                        break;
                     }
-                    else if (cr.Topic == Topics.ConversationCreated)
+                    catch (Exception ex)
                     {
-                        globalUpdate = Builders<DailyStatDocument>.Update.Inc(s => s.NewConversations, 1)
-                            .SetOnInsert(s => s.Date, today);
+                        // Bắt các lỗi khác (như lỗi MongoDB/logic)
+                        _logger.LogError(ex, "Error processing Kafka message in StatsConsumer. Retrying...");
+                        await Task.Delay(1000, stoppingToken);
                     }
-                    else continue; 
-
-                    await globalCollection.UpdateOneAsync(globalFilter, globalUpdate, new UpdateOptions { IsUpsert = true }, stoppingToken);
-                    consumer.Commit(cr);
                 }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error processing Kafka message in StatsConsumer");
-                    await Task.Delay(1000, stoppingToken);
-                }
+            }
+            catch (OperationCanceledException)
+            {
+                // FIX: Bắt lỗi khi service shutdown bên ngoài vòng lặp
+                _logger.LogInformation("StatsConsumer worker is shutting down gracefully.");
+            }
+            finally
+            {
+                // Luôn đảm bảo consumer được đóng kết nối
+                consumer.Close();
             }
         }
     }
