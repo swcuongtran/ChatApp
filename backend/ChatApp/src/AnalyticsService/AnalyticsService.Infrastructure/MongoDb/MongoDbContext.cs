@@ -8,8 +8,9 @@ namespace AnalyticsService.Infrastructure.MongoDb
     public interface IMongoDbContext
     {
         IMongoCollection<DailyStatDocument> DailyStats { get; }
+        IMongoCollection<DailyUserStatDocument> UserDailyStats { get; }
     }
-    public class MongoDbContext : DbContext, IMongoDbContext
+    public class MongoDbContext : IMongoDbContext
     {
         private readonly IMongoDatabase _database;
         public MongoDbContext(IConfiguration configuration)
@@ -22,5 +23,7 @@ namespace AnalyticsService.Infrastructure.MongoDb
             _database = client.GetDatabase(databaseName);
         }
         public IMongoCollection<DailyStatDocument> DailyStats => _database.GetCollection<DailyStatDocument>("DailySystemStat");
+        public IMongoCollection<DailyUserStatDocument> UserDailyStats
+        => _database.GetCollection<DailyUserStatDocument>("UserDailyStats");
     }
 }

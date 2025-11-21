@@ -18,10 +18,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Controllers\" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\..\Shared\Contracts\Contracts.csproj" />
     <ProjectReference Include="..\AnalyticsService.Application\AnalyticsService.Application.csproj" />
     <ProjectReference Include="..\AnalyticsService.Infrastructure\AnalyticsService.Infrastructure.csproj" />
