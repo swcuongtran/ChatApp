@@ -16,6 +16,11 @@ namespace AnalyticsService.Api.Workers
 {
     public class StatsConsumer : BackgroundService
     {
+        private static readonly JsonSerializerOptions JsonOpts = new()
+        {
+            PropertyNameCaseInsensitive = true
+        };
+
         private readonly IServiceProvider _serviceProvider;
         private readonly ILogger<StatsConsumer> _logger;
         private readonly string _kafkaBootstrapServers;
@@ -42,13 +47,12 @@ namespace AnalyticsService.Api.Workers
 
             _logger.LogInformation("StatsConsumer subscribed and running.");
 
-            try // Khối try-catch chính: Bắt lỗi khi service tắt máy
+            try 
             {
                 while (!stoppingToken.IsCancellationRequested)
                 {
                     try
                     {
-                        // Lệnh chặn (Blocking call) - dòng này ném OperationCanceledException khi host tắt
                         var cr = consumer.Consume(stoppingToken);
 
                         using var scope = _serviceProvider.CreateScope();
@@ -63,10 +67,9 @@ namespace AnalyticsService.Api.Workers
                         var globalFilter = Builders<DailyStatDocument>.Filter.Eq(s => s.Id, dateId);
                         UpdateDefinition<DailyStatDocument> globalUpdate = null!;
 
-                        // --- LOGIC AGGREGATION (Đã FIX NRE) ---
                         if (cr.Topic == Topics.ChatMessageCreated)
                         {
-                            var envelope = JsonSerializer.Deserialize<IntegrationEvent<ChatMessageCreatedV1>>(cr.Message.Value);
+                            var envelope = JsonSerializer.Deserialize<IntegrationEvent<ChatMessageCreatedV1>>(cr.Message.Value, JsonOpts);
 
                             if (envelope?.Data is not null)
                             {
@@ -87,7 +90,7 @@ namespace AnalyticsService.Api.Workers
                         }
                         else if (cr.Topic == Topics.AttachmentUploaded)
                         {
-                            var envelope = JsonSerializer.Deserialize<IntegrationEvent<AttachmentUploadedV1>>(cr.Message.Value);
+                            var envelope = JsonSerializer.Deserialize<IntegrationEvent<AttachmentUploadedV1>>(cr.Message.Value, JsonOpts);
 
                             if (envelope?.Data is not null)
                             {
@@ -121,7 +124,6 @@ namespace AnalyticsService.Api.Workers
                             continue;
                         }
 
-                        // Thực hiện Upsert Global Stats
                         if (globalUpdate != null)
                         {
                             await globalCollection.UpdateOneAsync(globalFilter, globalUpdate, new UpdateOptions { IsUpsert = true }, stoppingToken);
@@ -131,12 +133,11 @@ namespace AnalyticsService.Api.Workers
                     }
                     catch (OperationCanceledException)
                     {
-                        // Bắt lỗi ngắt bên trong vòng lặp (thoát khỏi vòng lặp)
                         break;
                     }
                     catch (Exception ex)
                     {
-                        // Bắt các lỗi khác (như lỗi MongoDB/logic)
+
                         _logger.LogError(ex, "Error processing Kafka message in StatsConsumer. Retrying...");
                         await Task.Delay(1000, stoppingToken);
                     }
@@ -144,12 +145,10 @@ namespace AnalyticsService.Api.Workers
             }
             catch (OperationCanceledException)
             {
-                // FIX: Bắt lỗi khi service shutdown bên ngoài vòng lặp
                 _logger.LogInformation("StatsConsumer worker is shutting down gracefully.");
             }
             finally
             {
-                // Luôn đảm bảo consumer được đóng kết nối
                 consumer.Close();
             }
         }
