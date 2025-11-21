@@ -104,7 +104,6 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             NameClaimType = "sub"
         };
     });
-
 builder.Services.AddAuthorization();
 
 var app = builder.Build();
