@@ -7,8 +7,10 @@ using ChatService.Infrastructure;
 using ChatService.Infrastructure.Messaging;
 using ChatService.Infrastructure.Outbox;
 using ChatService.Infrastructure.Persistence.Repositories;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -74,6 +76,36 @@ builder.Services.AddSingleton<IEventBus, KafkaEventBus>();
 
 builder.Services.AddHealthChecks();
 
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.Authority = builder.Configuration["JWT_AUTHORITY"];
+        options.Audience = builder.Configuration["JWT_AUDIENCE"];
+        options.RequireHttpsMetadata = false;
+
+        options.BackchannelHttpHandler = new HttpClientHandler
+        {
+            ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+        };
+
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuers = new[]
+            {
+                options.Authority!,
+                "http://localhost:8082/realms/chatapp"
+            },
+            ValidateAudience = true,
+            ValidAudiences = new[] { options.Audience!, "account" },
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+
+            NameClaimType = "sub"
+        };
+    });
+builder.Services.AddAuthorization();
+
 var app = builder.Build();
 
 
@@ -83,6 +115,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseAuthentication();
 
 app.UseAuthorization();
 

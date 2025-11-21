@@ -1,5 +1,6 @@
 ﻿using AnalyticsService.Domain.Entities;
 using AnalyticsService.Infrastructure.MongoDb;
+using AnalyticsService.Infrastructure.MongoDb.Documents;
 using BuildingBlock.CQRS;
 using MongoDB.Bson;
 using MongoDB.Driver;
@@ -51,6 +52,24 @@ namespace AnalyticsService.Application.Queries
                 TotalStorageBytes: summary["TotalStorageBytes"].ToInt64(),
                 TotalConversations: summary["TotalConversations"].ToInt64()
             );
+        }
+    }
+    public class GetUserDailyStatsHandler : IQueryHandler<GetUserDailyStatsQuery, IReadOnlyList<DailyUserStat>>
+    {
+        private readonly IMongoDbContext _db;
+        public GetUserDailyStatsHandler(IMongoDbContext db) => _db = db;
+
+        public async Task<IReadOnlyList<DailyUserStat>> Handle(GetUserDailyStatsQuery request, CancellationToken ct)
+        {
+            var userFilter = Builders<DailyUserStatDocument>.Filter.Eq(d => d.UserId, request.UserId);
+
+            var documents = await _db.UserDailyStats
+                .Find(userFilter)
+                .SortByDescending(s => s.Date)
+                .Limit(request.Days)
+                .ToListAsync(ct);
+
+            return documents.Select(d => d.ToDomain()).ToList();
         }
     }
 }
