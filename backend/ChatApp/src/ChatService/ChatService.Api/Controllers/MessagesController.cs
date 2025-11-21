@@ -3,6 +3,7 @@ using ChatService.Application.Messages;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;
+using System.Security.Claims;
 using Utils.Correlation;
 
 namespace ChatService.Api.Controllers
@@ -25,10 +26,15 @@ namespace ChatService.Api.Controllers
         {
             var traceId = _correlationIdProvider.TraceId;
             var corrId = _correlationIdProvider.CorrelationId;
+            var senderIdFromClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrWhiteSpace(senderIdFromClaim))
+            {
+                return Unauthorized("JWT Claim 'sub' not found.");
+            }
 
             var command = new SendMessageCommand(
                 ConversationId: request.ConversationId,
-                SenderId: request.SenderId,
+                SenderId: senderIdFromClaim,
                 Content: request.Content,
                 MessageId: request.MessageId
             );

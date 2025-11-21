@@ -4,6 +4,7 @@ using AnalyticsService.Infrastructure.MongoDb.Documents;
 using BuildingBlock.Messaging;
 using Confluent.Kafka;
 using Contracts;
+using Contracts.Chat;
 using Contracts.Files;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -47,35 +48,62 @@ namespace AnalyticsService.Api.Workers
                     var dbContext = scope.ServiceProvider.GetRequiredService<IMongoDbContext>();
 
                     var today = DateTime.UtcNow.Date;
-                    var todayId = today.ToString("yyyy-MM-dd");
-                    var collection = dbContext.DailyStats;
+                    var dateId = today.ToString("yyyy-MM-dd");
 
-                    var filter = Builders<DailyStatDocument>.Filter.Eq(s => s.Id, todayId);
-                    UpdateDefinition<DailyStatDocument> update;
+                    var globalCollection = dbContext.DailyStats;
+                    var userStatCollection = dbContext.UserDailyStats;
+
+                    var globalFilter = Builders<DailyStatDocument>.Filter.Eq(s => s.Id, dateId);
+                    UpdateDefinition<DailyStatDocument> globalUpdate = null!;
+
+                    string senderId = string.Empty;
 
                     if (cr.Topic == Topics.ChatMessageCreated)
                     {
-                        update = Builders<DailyStatDocument>.Update.Inc(s => s.TotalMessages, 1)
+                        var envelope = JsonSerializer.Deserialize<IntegrationEvent<ChatMessageCreatedV1>>(cr.Message.Value)!;
+                        senderId = envelope.Data.SenderId; 
+
+                        globalUpdate = Builders<DailyStatDocument>.Update.Inc(s => s.TotalMessages, 1)
                             .SetOnInsert(s => s.Date, today);
+
+                        var userStatId = $"{senderId}_{dateId}";
+                        var userFilter = Builders<DailyUserStatDocument>.Filter.Eq(s => s.Id, userStatId);
+                        var userUpdate = Builders<DailyUserStatDocument>.Update
+                            .Inc(s => s.MessagesSent, 1)
+                            .SetOnInsert(s => s.Date, today)
+                            .SetOnInsert(s => s.UserId, senderId);
+
+                        await userStatCollection.UpdateOneAsync(userFilter, userUpdate, new UpdateOptions { IsUpsert = true }, stoppingToken);
                     }
                     else if (cr.Topic == Topics.AttachmentUploaded)
                     {
                         var envelope = JsonSerializer.Deserialize<IntegrationEvent<AttachmentUploadedV1>>(cr.Message.Value)!;
+                        senderId = envelope.Data.UploadedByUserId;
                         var fileSize = envelope.Data.SizeInBytes;
 
-                        update = Builders<DailyStatDocument>.Update
+                        globalUpdate = Builders<DailyStatDocument>.Update
                             .Inc(s => s.TotalFiles, 1)
                             .Inc(s => s.TotalStorageBytes, fileSize)
                             .SetOnInsert(s => s.Date, today);
+
+                        var userStatId = $"{senderId}_{dateId}";
+                        var userFilter = Builders<DailyUserStatDocument>.Filter.Eq(s => s.Id, userStatId);
+                        var userUpdate = Builders<DailyUserStatDocument>.Update
+                            .Inc(s => s.FilesUploaded, 1)
+                            .Inc(s => s.StorageUsedBytes, fileSize)
+                            .SetOnInsert(s => s.Date, today)
+                            .SetOnInsert(s => s.UserId, senderId);
+
+                        await userStatCollection.UpdateOneAsync(userFilter, userUpdate, new UpdateOptions { IsUpsert = true }, stoppingToken);
                     }
                     else if (cr.Topic == Topics.ConversationCreated)
                     {
-                        update = Builders<DailyStatDocument>.Update.Inc(s => s.NewConversations, 1)
+                        globalUpdate = Builders<DailyStatDocument>.Update.Inc(s => s.NewConversations, 1)
                             .SetOnInsert(s => s.Date, today);
                     }
-                    else continue;
+                    else continue; 
 
-                    await collection.UpdateOneAsync(filter, update, new UpdateOptions { IsUpsert = true }, stoppingToken);
+                    await globalCollection.UpdateOneAsync(globalFilter, globalUpdate, new UpdateOptions { IsUpsert = true }, stoppingToken);
                     consumer.Commit(cr);
                 }
                 catch (Exception ex)
