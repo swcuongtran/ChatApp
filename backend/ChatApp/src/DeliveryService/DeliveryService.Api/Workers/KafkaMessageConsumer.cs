@@ -25,11 +25,20 @@ namespace DeliveryService.Api.Workers
             _hubContext = hubContext;
         }
 
-        protected override Task ExecuteAsync(CancellationToken stoppingToken)
+        protected async override Task ExecuteAsync(CancellationToken stoppingToken)
         {
+            await Task.Yield();
+
             _logger.LogInformation("Kafka Message Consumer running.");
-           
-            return StartConsumer(stoppingToken);
+
+            try
+            {
+                await StartConsumer(stoppingToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogCritical(ex, "Critical error in Kafka Consumer. Background worker stopped.");
+            }
         }
 
         private async Task StartConsumer(CancellationToken stoppingToken)
@@ -42,103 +51,97 @@ namespace DeliveryService.Api.Workers
                 EnableAutoCommit = false
             };
 
-            using var consumer = new ConsumerBuilder<string, string>(config)
-                .SetErrorHandler((_, e) => _logger.LogError("Kafka Error: {Reason}", e.Reason))
-                .SetLogHandler((_, log) => _logger.LogDebug("Kafka Log: {Message}", log.Message))
-                .Build();
-
-            consumer.Subscribe(Topics.ChatMessageCreated);
-            _logger.LogInformation("Kafka Consumer subscribed to topic {Topic}", Topics.ChatMessageCreated);
-
             var jsonSerializerOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
 
-            try
+            // VÒNG LẶP 1: Đảm bảo Consumer luôn được tạo lại nếu bị sập
+            while (!stoppingToken.IsCancellationRequested)
             {
-                while (!stoppingToken.IsCancellationRequested)
+                try
                 {
-                    try
+                    // Tạo Consumer mới mỗi khi vòng lặp này bắt đầu lại
+                    using var consumer = new ConsumerBuilder<string, string>(config)
+                        .SetErrorHandler((_, e) => _logger.LogError("Kafka Error: {Reason}", e.Reason))
+                        // .SetLogHandler((_, log) => _logger.LogDebug("Kafka Log: {Message}", log.Message)) // Bớt log rác nếu cần
+                        .Build();
+
+                    consumer.Subscribe(Topics.ChatMessageCreated);
+                    _logger.LogInformation("Kafka Consumer (Re)Started and subscribed to {Topic}", Topics.ChatMessageCreated);
+
+                    // VÒNG LẶP 2: Vòng lặp tiêu thụ tin nhắn
+                    while (!stoppingToken.IsCancellationRequested)
                     {
-                        var consumeResult = consumer.Consume(stoppingToken);
-                        var headers = consumeResult.Message.Headers;
-
-                        ActivityContext parentContext = default; 
-
-                       if (consumeResult.Message.Headers.TryGetLastBytes("x-trace-id", out var traceIdBytes))
-                        {
-                            var traceIdStr = Encoding.UTF8.GetString(traceIdBytes);
-                            try
-                            {
-                                var traceId = ActivityTraceId.CreateFromString(traceIdStr.AsSpan());
-
-                                parentContext = new ActivityContext(traceId, ActivitySpanId.CreateRandom(), ActivityTraceFlags.Recorded);
-                            }
-                            catch
-                            {
-                                _logger.LogDebug("Invalid TraceId format from Kafka header: {TraceId}", traceIdStr);
-                            }
-                        }
-
-                        using var activity = _activitySource.StartActivity("ProcessKafkaMessage", ActivityKind.Consumer, parentContext);
-
-                        activity?.SetTag("messaging.system", "kafka");
-                        activity?.SetTag("messaging.destination", Topics.ChatMessageCreated);
-                        var jsonPayload = consumeResult.Message.Value;
-
                         try
                         {
-                            var envelope = JsonSerializer.Deserialize<IntegrationEvent<ChatMessageCreatedV1>>(jsonPayload, jsonSerializerOptions);
+                            var consumeResult = consumer.Consume(stoppingToken);
 
-                            if (envelope == null || envelope.Data == null)
+                            // --- BẮT ĐẦU XỬ LÝ TIN NHẮN ---
+                            var headers = consumeResult.Message.Headers;
+                            ActivityContext parentContext = default;
+
+                            if (headers.TryGetLastBytes("x-trace-id", out var traceIdBytes))
                             {
-                                _logger.LogError("Failed to deserialize Kafka message or Data is null: {Payload}", jsonPayload);
-                                consumer.Commit(consumeResult); 
-                                continue;
+                                var traceIdStr = Encoding.UTF8.GetString(traceIdBytes);
+                                try
+                                {
+                                    var traceId = ActivityTraceId.CreateFromString(traceIdStr.AsSpan());
+                                    parentContext = new ActivityContext(traceId, ActivitySpanId.CreateRandom(), ActivityTraceFlags.Recorded);
+                                }
+                                catch { /* Ignore invalid trace format */ }
                             }
 
-                            var messageEvent = envelope.Data;
-                            var conversationId = messageEvent.ConversationId;
+                            using var activity = _activitySource.StartActivity("ProcessKafkaMessage", ActivityKind.Consumer, parentContext);
+                            var jsonPayload = consumeResult.Message.Value;
 
-                            
-                            await _hubContext.Clients
-                                .Group(conversationId)
-                                .SendAsync("ReceiveMessage", messageEvent, stoppingToken);
+                            try
+                            {
+                                var envelope = JsonSerializer.Deserialize<IntegrationEvent<ChatMessageCreatedV1>>(jsonPayload, jsonSerializerOptions);
 
-                            _logger.LogInformation("Dispatched message {MessageId} to group {ConvId}",
-                                messageEvent.MessageId, conversationId);
+                                if (envelope == null || envelope.Data == null)
+                                {
+                                    _logger.LogError("Null data received: {Payload}", jsonPayload);
+                                    consumer.Commit(consumeResult);
+                                    continue;
+                                }
 
-                            
-                            consumer.Commit(consumeResult);
-                            activity?.SetTag("signalr.group", envelope.Data.ConversationId);
-                            activity?.SetStatus(ActivityStatusCode.Ok);
+                                var messageEvent = envelope.Data;
+
+                                await _hubContext.Clients
+                                    .Group(messageEvent.ConversationId)
+                                    .SendAsync("ReceiveMessage", messageEvent, stoppingToken);
+
+                                _logger.LogInformation("Dispatched msg {MsgId} to Group {ConvId}", messageEvent.MessageId, messageEvent.ConversationId);
+
+                                consumer.Commit(consumeResult);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogError(ex, "Error processing logic: {Payload}", jsonPayload);
+                            }
+                            // --- KẾT THÚC XỬ LÝ TIN NHẮN ---
                         }
-                        catch (Exception ex)
+                        catch (ConsumeException ex)
                         {
-                            _logger.LogError(ex, "Error processing Kafka message logic: {Payload}", jsonPayload);
-                            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-                        }
-                    }
-                    catch (ConsumeException ex)
-                    {
-                        if (!ex.Error.IsFatal)
-                        {
-                            _logger.LogWarning("Kafka consumer non-fatal error (e.g. Topic not created yet): {Reason}. Retrying in 1s...", ex.Error.Reason);
-                            await Task.Delay(1000, stoppingToken);
-                        }
-                        else
-                        {
-                            _logger.LogCritical(ex, "Fatal Kafka consumer error.");
-                            throw; 
+                            if (ex.Error.IsFatal)
+                            {
+                                _logger.LogCritical(ex, "Fatal Kafka Error. Re-initializing consumer...");
+                                // QUAN TRỌNG: Break khỏi vòng lặp bên trong để 'using' statement dispose consumer hiện tại
+                                // và vòng lặp bên ngoài sẽ tạo consumer mới.
+                                break;
+                            }
+                            else
+                            {
+                                _logger.LogWarning("Non-fatal Kafka Error: {Reason}", ex.Error.Reason);
+                                await Task.Delay(1000, stoppingToken);
+                            }
                         }
                     }
                 }
-            }
-            catch (OperationCanceledException)
-            {
-                _logger.LogInformation("Kafka Consumer is stopping.");
-            }
-            finally
-            {
-                consumer.Close();
+                catch (Exception ex)
+                {
+                    // Bắt các lỗi ngoại lệ khác (ví dụ lỗi kết nối mạng khi tạo consumer) để Service không bao giờ crash
+                    _logger.LogError(ex, "Unexpected error in Kafka Consumer loop. Retrying in 5s...");
+                    await Task.Delay(5000, stoppingToken);
+                }
             }
         }
     }

@@ -310,6 +310,22 @@ services:
       - mongo_data:/data/db
     networks:
       - chatnet
+
+  mongo-express:
+    image: mongo-express
+    container_name: chatapp-mongo-express
+    restart: always
+    ports:
+      - "8083:8081" 
+    environment:
+      ME_CONFIG_MONGODB_SERVER: mongodb     
+      ME_CONFIG_MONGODB_PORT: 27017
+      ME_CONFIG_BASICAUTH: "false"          
+      ME_CONFIG_SITE_BASEURL: "/"
+    depends_on:
+      - mongodb
+    networks:
+      - chatnet
   
             
 volumes:
