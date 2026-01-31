@@ -5,6 +5,7 @@ using Contracts;
 using Contracts.Chat;
 using Nest;
 using SearchService.Api.Model;
+using SearchService.Api.Services;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
@@ -17,11 +18,17 @@ namespace SearchService.Api.Workers
         private readonly IConfiguration _config;
         private readonly IElasticClient _client;
         private readonly ActivitySource _activitySource = new ActivitySource("SearchService");
-        public SearchConsumer(ILogger<SearchConsumer> logger, IConfiguration configuration, IElasticClient elasticClient)
+        private readonly IEmbeddingService _embeddingService;
+        public SearchConsumer(
+            ILogger<SearchConsumer> logger,
+            IConfiguration configuration,
+            IElasticClient elasticClient,
+            IEmbeddingService embeddingService)
         {
             _logger = logger;
             _config = configuration;
             _client = elasticClient;
+            _embeddingService = embeddingService;
         }
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
@@ -63,13 +70,23 @@ namespace SearchService.Api.Workers
                     if (envelope?.Data is not null)
                     {
                         var msg = envelope.Data;
+                        float[]? vector = null;
+                        try
+                        {
+                            vector = await _embeddingService.GetEmbeddingAsync(msg.Content);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Failed to generate embedding for message {MessageId}", msg.MessageId);
+                        }
                         var doc = new MessageDoc
                         {
                             Id = msg.MessageId,
                             ConversationId = msg.ConversationId,
                             SenderId = msg.SenderId,
                             Content = msg.Content,
-                            CreatedAtUtc = msg.CreatedAtUtc
+                            CreatedAtUtc = msg.CreatedAtUtc,
+                            Embedding = vector
                         };
 
                         var response = await _client.IndexDocumentAsync(doc, stoppingToken);

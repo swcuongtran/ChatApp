@@ -1,339 +1,343 @@
-services:
-  chatapp.gateway:
-    build: 
-        context: .
-        dockerfile: ./src/Gateway/ChatApp.Gateway/Dockerfile
-    environment:
-      ASPNETCORE_ENVIRONMENT: Development
-      ASPNETCORE_HTTP_PORTS: "8080"
-      CHAT_BASE_URL: "http://chatservice.api:8080"
-      HISTORY_BASE_URL: "http://historyservice.api:8080"
-      PRESENCE_BASE_URL: "http://presenceservice.api:8080"
-      DELIVERY_BASE_URL: "http://deliveryservice.api:8080"
-      SIGNALING_BASE_URL: "http://signalingservice.api:8080"
-      Auth__Authority: "http://keycloak:8080/realms/chatapp"
-      Auth__Audience: "account"
-      Auth__RequireHttpsMetadata: "false"
-      OTEL_SERVICE_NAME: "gateway"
-      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4317"
-      OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
-    ports:
-      - "8081:8080"
-    volumes:
-      - ${APPDATA}/Microsoft/UserSecrets:/home/app/.microsoft/usersecrets:ro
-    depends_on:
-      chatservice.api:
-       condition: service_started
-      keycloak:
-       condition: service_started
-    networks:
-      - chatnet
+  services:
+    chatapp.gateway:
+      build: 
+          context: .
+          dockerfile: ./src/Gateway/ChatApp.Gateway/Dockerfile
+      environment:
+        ASPNETCORE_ENVIRONMENT: Development
+        ASPNETCORE_HTTP_PORTS: "8080"
+        CHAT_BASE_URL: "http://chatservice.api:8080"
+        HISTORY_BASE_URL: "http://historyservice.api:8080"
+        PRESENCE_BASE_URL: "http://presenceservice.api:8080"
+        DELIVERY_BASE_URL: "http://deliveryservice.api:8080"
+        SIGNALING_BASE_URL: "http://signalingservice.api:8080"
+        Auth__Authority: "http://keycloak:8080/realms/chatapp"
+        Auth__Audience: "account"
+        Auth__RequireHttpsMetadata: "false"
+        OTEL_SERVICE_NAME: "gateway"
+        OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4317"
+        OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
+      ports:
+        - "8081:8080"
+      volumes:
+        - ${APPDATA}/Microsoft/UserSecrets:/home/app/.microsoft/usersecrets:ro
+      depends_on:
+        chatservice.api:
+         condition: service_started
+        keycloak:
+         condition: service_started
+      networks:
+        - chatnet
 
-  chatservice.api:
-    build:
-        context: .
-        dockerfile: ./src/ChatService/ChatService.Api/Dockerfile
-    environment:
-      ASPNETCORE_ENVIRONMENT: Development
-      ASPNETCORE_HTTP_PORTS: "8080"
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: "5432"
-      POSTGRES_DB: chat
-      POSTGRES_USER: chat
-      POSTGRES_PASSWORD: chat
-      KAFKA_BROKERS: kafka:9092
-      KAFKA_CLIENT_ID: chatservice
-      JWT_AUTHORITY: "http://keycloak:8080/realms/chatapp"
-      JWT_AUDIENCE: "account"
-      OTEL_SERVICE_NAME: "chatservice"
-      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4317"
-      OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
-    expose:
-      - "8080"
-    volumes:
-      - ${APPDATA}/Microsoft/UserSecrets:/home/app/.microsoft/usersecrets:ro
-    depends_on:
-      postgres:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-    networks:
-      - chatnet
+    chatservice.api:
+      build:
+          context: .
+          dockerfile: ./src/ChatService/ChatService.Api/Dockerfile
+      environment:
+        ASPNETCORE_ENVIRONMENT: Development
+        ASPNETCORE_HTTP_PORTS: "8080"
+        POSTGRES_HOST: postgres
+        POSTGRES_PORT: "5432"
+        POSTGRES_DB: chat
+        POSTGRES_USER: chat
+        POSTGRES_PASSWORD: chat
+        KAFKA_BROKERS: kafka:9092
+        KAFKA_CLIENT_ID: chatservice
+        JWT_AUTHORITY: "http://keycloak:8080/realms/chatapp"
+        JWT_AUDIENCE: "account"
+        OTEL_SERVICE_NAME: "chatservice"
+        OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4317"
+        OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
+      expose:
+        - "8080"
+      volumes:
+        - ${APPDATA}/Microsoft/UserSecrets:/home/app/.microsoft/usersecrets:ro
+      depends_on:
+        postgres:
+          condition: service_healthy
+        kafka:
+          condition: service_healthy
+      networks:
+        - chatnet
 
-  deliveryservice.api:
-    build:
-        context: .
-        dockerfile: ./src/DeliveryService/DeliveryService.Api/Dockerfile
-    environment:
-      ASPNETCORE_ENVIRONMENT: Development
-      ASPNETCORE_HTTP_PORTS: "8080"
-      Kafka:BootstrapServers: kafka:9092
-      Kafka:GroupId: delivery-service-group
-      JWT_AUTHORITY: "http://keycloak:8080/realms/chatapp" 
-      JWT_AUDIENCE: "account"
-      OTEL_SERVICE_NAME: "deliveryservice"
-      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4317"
-      OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
-    expose:
-      - "8080"
-    volumes:
-      - ${APPDATA}/Microsoft/UserSecrets:/home/app/.microsoft/usersecrets:ro
-    depends_on:
-      postgres:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-    networks:
-      - chatnet
+    deliveryservice.api:
+      build:
+          context: .
+          dockerfile: ./src/DeliveryService/DeliveryService.Api/Dockerfile
+      environment:
+        ASPNETCORE_ENVIRONMENT: Development
+        ASPNETCORE_HTTP_PORTS: "8080"
+        Kafka:BootstrapServers: kafka:9092
+        Kafka:GroupId: delivery-service-group
+        JWT_AUTHORITY: "http://keycloak:8080/realms/chatapp" 
+        JWT_AUDIENCE: "account"
+        OTEL_SERVICE_NAME: "deliveryservice"
+        OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4317"
+        OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
+      expose:
+        - "8080"
+      volumes:
+        - ${APPDATA}/Microsoft/UserSecrets:/home/app/.microsoft/usersecrets:ro
+      depends_on:
+        postgres:
+          condition: service_healthy
+        kafka:
+          condition: service_healthy
+      networks:
+        - chatnet
   
-  searchservice.api:
-    build:
-        context: .
-        dockerfile: ./src/SearchService/SearchService.Api/Dockerfile
-    environment:
-      ASPNETCORE_ENVIRONMENT: Development
-      ASPNETCORE_HTTP_PORTS: "8080"
-      Elasticsearch__Uri: "http://elasticsearch:9200"
-      Kafka__BootstrapServers: "kafka:9092"
-      Kafka__GroupId: "search-service-group"
-      OTEL_SERVICE_NAME: "SearchService"
-      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4317"
-      OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
-      JWT_AUTHORITY: "http://keycloak:8080/realms/chatapp"
-      JWT_AUDIENCE: "account"
-    expose:
-      - "8080"
-    depends_on:
-      elasticsearch:
-        condition: service_started
-      kafka:
-        condition: service_healthy
-    networks:
-      - chatnet
+    searchservice.api:
+      build:
+          context: .
+          dockerfile: ./src/SearchService/SearchService.Api/Dockerfile
+      environment:
+        ASPNETCORE_ENVIRONMENT: Development
+        ASPNETCORE_HTTP_PORTS: "8080"
+        Elasticsearch__Uri: "http://elasticsearch:9200"
+        Kafka__BootstrapServers: "kafka:9092"
+        Kafka__GroupId: "search-service-group"
+        OTEL_SERVICE_NAME: "SearchService"
+        OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4317"
+        OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
+        JWT_AUTHORITY: "http://keycloak:8080/realms/chatapp"
+        JWT_AUDIENCE: "account"
+      expose:
+        - "8080"
+      depends_on:
+        elasticsearch:
+          condition: service_started
+        kafka:
+          condition: service_healthy
+      networks:
+        - chatnet
 
-  fileservice.api:
-    build:
-        context: .
-        dockerfile: src/FileService/FileService.Api/Dockerfile
-    environment:
-      ASPNETCORE_ENVIRONMENT: Development
-      ASPNETCORE_HTTP_PORTS: "8080"
+    fileservice.api:
+      build:
+          context: .
+          dockerfile: src/FileService/FileService.Api/Dockerfile
+      environment:
+        ASPNETCORE_ENVIRONMENT: Development
+        ASPNETCORE_HTTP_PORTS: "8080"
     
-      AWS_REGION: ${AWS_REGION}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-      S3__BucketName: ${S3_BUCKET_NAME}
+        AWS_REGION: ${AWS_REGION}
+        AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+        AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+        S3__BucketName: ${S3_BUCKET_NAME}
       
-      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=chat_files;Username=chat;Password=chat"
-      Kafka__BootstrapServers: "kafka:9092"
+        ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=chat_files;Username=chat;Password=chat"
+        Kafka__BootstrapServers: "kafka:9092"
       
 
-      JWT_AUTHORITY: "http://keycloak:8080/realms/chatapp"
-      JWT_AUDIENCE: "account"
-      OTEL_SERVICE_NAME: "FileService"
-      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4317"
-      OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
-    expose:
-      - "8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-    networks:
-      - chatnet
+        JWT_AUTHORITY: "http://keycloak:8080/realms/chatapp"
+        JWT_AUDIENCE: "account"
+        OTEL_SERVICE_NAME: "FileService"
+        OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4317"
+        OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
+      expose:
+        - "8080"
+      depends_on:
+        postgres:
+          condition: service_healthy
+        kafka:
+          condition: service_healthy
+      networks:
+        - chatnet
 
-  analyticsservice.api:
-    build:
-        context: .
-        dockerfile: src/AnalyticsService/AnalyticsService.Api/Dockerfile
-    environment:
-      ASPNETCORE_ENVIRONMENT: Development
-      ASPNETCORE_HTTP_PORTS: "8080"
-      ASPNETCORE_URLS: "http://+:8080" 
-      MONGO_CONNECTION_STRING: ${MONGO_CONNECTION_STRING}
-      MONGO_DB_NAME: ${MONGO_DB_NAME}
-      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BROKERS}
-      JWT_AUTHORITY: "http://keycloak:8080/realms/chatapp"
-      JWT_AUDIENCE: "account"
-      OTEL_SERVICE_NAME: "analyticsservice"
-      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4317"
-    expose:
-      - "8080"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 20s 
-    depends_on:
-      - mongodb
-      - kafka
-    networks:
-      - chatnet
-
-  keycloak:
-    image: quay.io/keycloak/keycloak:24.0.1
-    environment:
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin
-      KC_HTTP_ENABLED: "true"
-      KC_HOSTNAME_STRICT: "false"
-      KC_HOSTNAME_STRICT_HTTPS: "false"
-      KC_LOG_LEVEL: info
-    command: start-dev
-    ports:
-      - "8082:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - chatnet
-
-
-  jaeger:
-    image: jaegertracing/all-in-one:latest
-    environment:
-      - COLLECTOR_OTLP_ENABLED=true 
-    ports:
-      - "16686:16686" 
-      - "4317:4317"   
-      - "4318:4318"   
-    networks:
-      - chatnet
-
-  postgres:
-    image: postgres:16
-    environment:
-      POSTGRES_PASSWORD: chat
-      POSTGRES_USER: chat
-      POSTGRES_DB: chat
-    ports:
-      - "5432:5432"
-    healthcheck:
-        test: ["CMD-SHELL", "pg_isready -U chat"]
+    analyticsservice.api:
+      build:
+          context: .
+          dockerfile: src/AnalyticsService/AnalyticsService.Api/Dockerfile
+      environment:
+        ASPNETCORE_ENVIRONMENT: Development
+        ASPNETCORE_HTTP_PORTS: "8080"
+        ASPNETCORE_URLS: "http://+:8080" 
+        MONGO_CONNECTION_STRING: ${MONGO_CONNECTION_STRING}
+        MONGO_DB_NAME: ${MONGO_DB_NAME}
+        KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BROKERS}
+        JWT_AUTHORITY: "http://keycloak:8080/realms/chatapp"
+        JWT_AUDIENCE: "account"
+        OTEL_SERVICE_NAME: "analyticsservice"
+        OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4317"
+      expose:
+        - "8080"
+      healthcheck:
+        test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
         interval: 10s
         timeout: 5s
         retries: 5
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    networks:
-      - chatnet
+        start_period: 20s 
+      depends_on:
+        - mongodb
+        - kafka
+      networks:
+        - chatnet
 
-  kafka:
-    image: confluentinc/cp-kafka:7.6.0
-    environment:
-      KAFKA_NODE_ID: 1
-      KAFKA_PROCESS_ROLES: 'broker,controller'
-      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
-      KAFKA_LISTENERS: 'PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093'
-      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:9092'
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT'
-      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:9093'
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
-
-    healthcheck:
-        test: ["CMD-SHELL", "cub kafka-ready -b localhost:9092 1 1"]
-        interval: 10s
-        timeout: 5s
-        retries: 5
-
-    networks:
-      - chatnet
+    keycloak:
+      image: quay.io/keycloak/keycloak:24.0.1
+      environment:
+        KEYCLOAK_ADMIN: admin
+        KEYCLOAK_ADMIN_PASSWORD: admin
+        KC_HTTP_ENABLED: "true"
+        KC_HOSTNAME_STRICT: "false"
+        KC_HOSTNAME_STRICT_HTTPS: "false"
+        KC_LOG_LEVEL: info
+        KC_DB: postgres
+        KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+        KC_DB_USERNAME: chat  
+        KC_DB_PASSWORD: chat
+      command: start-dev
+      ports:
+        - "8082:8080"
+      depends_on:
+        postgres:
+          condition: service_healthy
+      networks:
+        - chatnet
 
 
-  pgadmin:
-     image: dpage/pgadmin4:latest
-     environment:
-         PGADMIN_DEFAULT_EMAIL: "admin@example.com"
-         PGADMIN_DEFAULT_PASSWORD: "admin"
-     ports:
-         - "5050:80"
-     volumes:
-            - pgadmindata:/var/lib/pgadmin
-     networks:
-       - chatnet
-     depends_on:
-       postgres:
-         condition: service_healthy
+    jaeger:
+      image: jaegertracing/all-in-one:latest
+      environment:
+        - COLLECTOR_OTLP_ENABLED=true 
+      ports:
+        - "16686:16686" 
+        - "4317:4317"   
+        - "4318:4318"   
+      networks:
+        - chatnet
+
+    postgres:
+      image: postgres:16
+      environment:
+        POSTGRES_PASSWORD: chat
+        POSTGRES_USER: chat
+        POSTGRES_DB: chat
+      ports:
+        - "5432:5432"
+      healthcheck:
+          test: ["CMD-SHELL", "pg_isready -U chat"]
+          interval: 10s
+          timeout: 5s
+          retries: 5
+      volumes:
+        - pgdata:/var/lib/postgresql/data
+      networks:
+        - chatnet
+
+    kafka:
+      image: confluentinc/cp-kafka:7.6.0
+      environment:
+        KAFKA_NODE_ID: 1
+        KAFKA_PROCESS_ROLES: 'broker,controller'
+        KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+        KAFKA_LISTENERS: 'PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093'
+        KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:9092'
+        KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT'
+        KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:9093'
+        KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+        KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+        KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+        KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+        KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+        CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+
+      healthcheck:
+          test: ["CMD-SHELL", "cub kafka-ready -b localhost:9092 1 1"]
+          interval: 10s
+          timeout: 5s
+          retries: 5
+
+      networks:
+        - chatnet
+
+
+    pgadmin:
+       image: dpage/pgadmin4:latest
+       environment:
+           PGADMIN_DEFAULT_EMAIL: "admin@example.com"
+           PGADMIN_DEFAULT_PASSWORD: "admin"
+       ports:
+           - "5050:80"
+       volumes:
+              - pgadmindata:/var/lib/pgadmin
+       networks:
+         - chatnet
+       depends_on:
+         postgres:
+           condition: service_healthy
          
-  kafka-ui:
-    image: provectuslabs/kafka-ui:latest
-    environment:
-      KAFKA_CLUSTERS_0_NAME: "local_chatapp"
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka:9092"
-      KAFKA_CLUSTERS_0_CLUSTERID: "MkU3OEVBNTcwNTJENDM2Qk"
-    ports:
-      - "8090:8080"
-    networks:
-      - chatnet
-    depends_on:
-      kafka:
-        condition: service_healthy
+    kafka-ui:
+      image: provectuslabs/kafka-ui:latest
+      environment:
+        KAFKA_CLUSTERS_0_NAME: "local_chatapp"
+        KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka:9092"
+        KAFKA_CLUSTERS_0_CLUSTERID: "MkU3OEVBNTcwNTJENDM2Qk"
+      ports:
+        - "8090:8080"
+      networks:
+        - chatnet
+      depends_on:
+        kafka:
+          condition: service_healthy
 
-  elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.10
-    container_name: chatapp-elasticsearch
-    environment:
-      - discovery.type=single-node
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m" 
-      - xpack.security.enabled=false
-    ports:
-      - "9200:9200"
-    networks:
-      - chatnet
+    elasticsearch:
+      image: docker.elastic.co/elasticsearch/elasticsearch:7.17.10
+      container_name: chatapp-elasticsearch
+      environment:
+        - discovery.type=single-node
+        - "ES_JAVA_OPTS=-Xms512m -Xmx512m" 
+        - xpack.security.enabled=false
+      ports:
+        - "9200:9200"
+      networks:
+        - chatnet
 
-  kibana:
-    image: docker.elastic.co/kibana/kibana:7.17.10
-    container_name: chatapp-kibana
-    environment:
-      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
-    ports:
-      - "5601:5601"
-    depends_on:
-      elasticsearch:
-        condition: service_started
-    networks:
-      - chatnet
+    kibana:
+      image: docker.elastic.co/kibana/kibana:7.17.10
+      container_name: chatapp-kibana
+      environment:
+        - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      ports:
+        - "5601:5601"
+      depends_on:
+        elasticsearch:
+          condition: service_started
+      networks:
+        - chatnet
 
-  mongodb:
-    image: mongo:latest
-    container_name: chatapp-mongodb
-    ports:
-      - "27017:27017" 
-    volumes:
-      - mongo_data:/data/db
-    networks:
-      - chatnet
+    mongodb:
+      image: mongo:latest
+      container_name: chatapp-mongodb
+      ports:
+        - "27017:27017" 
+      volumes:
+        - mongo_data:/data/db
+      networks:
+        - chatnet
 
-  mongo-express:
-    image: mongo-express
-    container_name: chatapp-mongo-express
-    restart: always
-    ports:
-      - "8083:8081" 
-    environment:
-      ME_CONFIG_MONGODB_SERVER: mongodb     
-      ME_CONFIG_MONGODB_PORT: 27017
-      ME_CONFIG_BASICAUTH: "false"          
-      ME_CONFIG_SITE_BASEURL: "/"
-    depends_on:
-      - mongodb
-    networks:
-      - chatnet
+    mongo-express:
+      image: mongo-express
+      container_name: chatapp-mongo-express
+      restart: always
+      ports:
+        - "8083:8081" 
+      environment:
+        ME_CONFIG_MONGODB_SERVER: mongodb     
+        ME_CONFIG_MONGODB_PORT: 27017
+        ME_CONFIG_BASICAUTH: "false"          
+        ME_CONFIG_SITE_BASEURL: "/"
+      depends_on:
+        - mongodb
+      networks:
+        - chatnet
   
             
-volumes:
-  pgdata:
-  pgadmindata:
-  mongo_data:
+  volumes:
+    pgdata:
+    pgadmindata:
+    mongo_data:
 
-networks:
-  chatnet:
-    driver: bridge
-    name: chatapp_net  
+  networks:
+    chatnet:
+      driver: bridge
+      name: chatapp_net  

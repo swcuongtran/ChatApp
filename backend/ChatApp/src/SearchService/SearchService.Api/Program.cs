@@ -4,16 +4,36 @@ using Microsoft.IdentityModel.Tokens;
 using Nest;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+using SearchService.Api.Model;
+using SearchService.Api.Services;
 using SearchService.Api.Workers;
 
 var builder = WebApplication.CreateBuilder(args);
 var config = builder.Configuration;
 // Add services to the container.
+builder.Services.AddHttpClient<IEmbeddingService, GeminiEmbeddingService>();
+
 
 var settings = new ConnectionSettings(new Uri(builder.Configuration["Elasticsearch:Uri"]!))
     .DefaultIndex("chat_messages");
 
 var client = new ElasticClient(settings);
+
+var indexName = "messages";
+if (!client.Indices.Exists(indexName).Exists)
+{
+    client.Indices.Create(indexName, c => c
+        .Map<MessageDoc>(m => m
+            .AutoMap()
+            .Properties(p => p
+                .DenseVector(dv => dv
+                    .Name(n => n.Embedding)
+                    .Dimensions(768) 
+                )
+            )
+        )
+    );
+}
 builder.Services.AddSingleton<IElasticClient>(client);
 
 builder.Services.AddHostedService<SearchConsumer>();
