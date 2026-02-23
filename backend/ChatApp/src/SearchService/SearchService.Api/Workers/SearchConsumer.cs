@@ -44,7 +44,7 @@ namespace SearchService.Api.Workers
             consumer.Subscribe(Topics.ChatMessageCreated);
 
             _logger.LogInformation("SearchConsumer started, listening to topic: {Topic}", Topics.ChatMessageCreated);
-
+            await Task.Yield();
             while (!stoppingToken.IsCancellationRequested)
             {
                 try
