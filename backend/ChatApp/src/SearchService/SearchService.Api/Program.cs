@@ -19,21 +19,6 @@ var settings = new ConnectionSettings(new Uri(builder.Configuration["Elasticsear
 
 var client = new ElasticClient(settings);
 
-var indexName = "messages";
-if (!client.Indices.Exists(indexName).Exists)
-{
-    client.Indices.Create(indexName, c => c
-        .Map<MessageDoc>(m => m
-            .AutoMap()
-            .Properties(p => p
-                .DenseVector(dv => dv
-                    .Name(n => n.Embedding)
-                    .Dimensions(768) 
-                )
-            )
-        )
-    );
-}
 builder.Services.AddSingleton<IElasticClient>(client);
 
 builder.Services.AddHostedService<SearchConsumer>();
@@ -54,8 +39,8 @@ builder.Services.AddOpenApi();
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        options.Authority = config["JWT_AUTHORITY"]; 
-        options.Audience = config["JWT_AUDIENCE"];   
+        options.Authority = config["JWT_AUTHORITY"];
+        options.Audience = config["JWT_AUDIENCE"];
         options.RequireHttpsMetadata = false;
 
         options.BackchannelHttpHandler = new HttpClientHandler
@@ -68,8 +53,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuer = true,
             ValidIssuers = new[]
             {
-                options.Authority, 
-                "http://localhost:8082/realms/chatapp" 
+                options.Authority,
+                "http://localhost:8082/realms/chatapp"
             },
             ValidateAudience = true,
             ValidAudiences = new[] { "account", "chatapp-api" },
@@ -106,10 +91,25 @@ using (var scope = app.Services.CreateScope())
 
             if (!exists.Exists)
             {
-                logger.LogInformation("Creating Index...");
-                esClient.Indices.Create("chat_messages", c => c.Map<SearchService.Api.Model.MessageDoc>(m => m.AutoMap()));
+                logger.LogInformation("Creating Index chat_messages with Explicit Mapping...");
+                var createIndexResponse = esClient.Indices.Create("chat_messages", c => c
+                    .Map<SearchService.Api.Model.MessageDoc>(m => m
+                        .AutoMap() 
+                        .Properties(p => p
+                            .DenseVector(dv => dv
+                                .Name(n => n.Embedding) 
+                                .Dimensions(768)      
+                            )
+                        )
+                    )
+                );
+
+                if (!createIndexResponse.IsValid)
+                {
+                    logger.LogError("Failed to create index: {Error}", createIndexResponse.ServerError?.Error.Reason);
+                }
             }
-            break; 
+            break;
         }
         catch
         {
@@ -119,6 +119,8 @@ using (var scope = app.Services.CreateScope())
     }
 }
 app.UseHttpsRedirection();
+
+app.UseAuthentication();
 
 app.UseAuthorization();
 

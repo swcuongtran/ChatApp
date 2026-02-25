@@ -54,39 +54,39 @@ namespace SearchService.Api.Controllers
         {
             if (string.IsNullOrWhiteSpace(term)) return BadRequest();
 
-            // 1. Tạo vector từ câu tìm kiếm của User
             var queryVector = await _embeddingService.GetEmbeddingAsync(term);
-
-            // 2. Query Elasticsearch (Kết hợp Match + Vector)
+            if (queryVector.Length == 0) return Ok(Array.Empty<MessageDoc>());
+            if (queryVector.Length != 768)
+                return StatusCode(500, $"Embedding dim mismatch: {queryVector.Length} (expected 768)");
             var response = await _client.SearchAsync<MessageDoc>(s => s
+                .Index("chat_messages")
                 .Size(20)
                 .Query(q => q
-                    .Bool(b => b
-                        .Filter(f => !string.IsNullOrEmpty(conversationId)
-                            ? f.Term(t => t.ConversationId, conversationId)
-                            : f.MatchAll()
-                        )
-                        .Should(
-                            // A. Tìm từ khóa chính xác (Ưu tiên 1.5)
-                            sh => sh.Match(m => m
-                                .Field(f => f.Content)
-                                .Query(term)
-                                .Boost(1.5)
-                            ),
-                            // B. Tìm ngữ nghĩa (Ưu tiên 1.0)
-                            sh => sh.ScriptScore(ss => ss
-                                .Query(sq => sq.MatchAll())
-                                .Script(sc => sc
-                                    .Source("cosineSimilarity(params.query_vector, 'embedding') + 1.0")
-                                    .Params(p => p.Add("query_vector", queryVector))
+                    .ScriptScore(ss => ss
+                        .Query(qq => qq
+                            .Bool(b => b
+                                // Filter Conversation
+                                .Filter(f => !string.IsNullOrEmpty(conversationId)
+                                    ? f.Term(t => t.Field("conversationId.keyword").Value(conversationId))
+                                    : f.MatchAll()
                                 )
-                                .Boost(1.0)
+                                // BẮT BUỘC CÓ DÒNG NÀY: Chỉ tính điểm cho docs có cột Embedding
+                                .Must(m => m.Exists(e => e.Field(f => f.Embedding)))
                             )
                         )
-                        .MinimumShouldMatch(1)
+                        .Script(sc => sc
+                            .Source(@"
+                                double v = cosineSimilarity(params.qv, 'embedding') + 1.0;
+                                return v; 
+                            ") // Tạm bỏ _score + keyword match để test riêng sức mạnh Vector AI trước cho dễ hiểu
+                            .Params(p => p.Add("qv", queryVector))
+                        )
                     )
                 )
             );
+
+            if (!response.IsValid)
+                return StatusCode(500, response.ServerError?.ToString() ?? response.OriginalException?.Message);
 
             return Ok(response.Documents);
         }
