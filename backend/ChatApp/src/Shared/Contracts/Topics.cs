@@ -8,6 +8,7 @@ namespace Contracts
         public static readonly string ChatMessageEdited = TopicName.Build("chat", "message", "edited", 1);
         public static readonly string ChatMessageDeleted = TopicName.Build("chat", "message", "deleted", 1);
         public static readonly string ConversationCreated = TopicName.Build("chat", "conversation", "created", 1);
+        public static readonly string UserReadMessage = TopicName.Build("user", "message", "read", 1);
 
         public static readonly string PresenceChanged = TopicName.Build("user", "presence", "changed", 1);
         public static readonly string TypingChanged = TopicName.Build("user", "typing", "changed", 1);
@@ -24,5 +25,6 @@ namespace Contracts
         public static readonly string UserAccountCreated = TopicName.Build("user", "account", "created", 1);
         public static readonly string UserProfileUpdated = TopicName.Build("user", "profile", "updated", 1);
         public static readonly string UserAccountDeleted = TopicName.Build("user", "account", "deleted", 1);
+
     }
 }

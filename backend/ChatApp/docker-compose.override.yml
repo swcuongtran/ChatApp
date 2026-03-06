@@ -93,6 +93,7 @@
       environment:
         ASPNETCORE_ENVIRONMENT: Development
         ASPNETCORE_HTTP_PORTS: "8080"
+        ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=search_db;Username=chat;Password=chat"
         Elasticsearch__Uri: "http://elasticsearch:9200"
         Kafka__BootstrapServers: "kafka:9092"
         Kafka__GroupId: "search-service-group"

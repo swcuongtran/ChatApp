@@ -24,13 +24,16 @@ namespace ChatService.Infrastructure.Persistence.Repositories
 
         public async Task<Conversation?> GetAsync(string conversationId, CancellationToken token)
         {
-            return await _dbContext.conversations.Include(c => c.Messages)
+            return await _dbContext.conversations
+                .Include(c => c.ConversationMembers)
+                .Include(c => c.Messages)
             .FirstOrDefaultAsync(x => x.Id == conversationId);
         }
 
         public async Task<Conversation?> GetByDirectKeyAsync(string directKey, CancellationToken ct = default)
         {
             return await _dbContext.conversations
+                .Include(c => c.ConversationMembers)
                 .Include(c => c.Messages)
                 .FirstOrDefaultAsync(x => x.DirectKey == directKey, ct);
         }
@@ -53,8 +56,9 @@ namespace ChatService.Infrastructure.Persistence.Repositories
         public async Task<IReadOnlyList<Conversation>> GetByUserIdAsync(string userId, CancellationToken ct = default)
         {
             return await _dbContext.conversations
+                .Include(c => c.ConversationMembers)
         .Include(c => c.Messages)
-        .Where(c => EF.Property<List<string>>(c, "_members").Contains(userId))
+        .Where(c => c.ConversationMembers.Any(m => m.UserId == userId))
         .OrderByDescending(c => c.Messages.Max(m => m.SentAt))
         .ToListAsync(ct);
         }

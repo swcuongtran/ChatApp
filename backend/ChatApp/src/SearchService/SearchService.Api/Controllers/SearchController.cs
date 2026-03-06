@@ -1,8 +1,11 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Nest;
+using SearchService.Api.DbContexts;
 using SearchService.Api.Model;
 using SearchService.Api.Services;
+using System.Security.Claims;
 
 namespace SearchService.Api.Controllers
 {
@@ -12,10 +15,14 @@ namespace SearchService.Api.Controllers
     {
         private readonly IElasticClient _client;
         private readonly IEmbeddingService _embeddingService;
-        public SearchController(IElasticClient client, IEmbeddingService embeddingService)
+        private readonly SearchDbContext _context;
+        private readonly ILogger<SearchController> _logger;
+        public SearchController(IElasticClient client, IEmbeddingService embeddingService, SearchDbContext searchDbContext,ILogger<SearchController> logger)
         {
             _embeddingService = embeddingService;
             _client = client;
+            _logger = logger;
+            _context = searchDbContext;
         }
         [HttpGet]
         public async Task<IActionResult> Search([FromQuery] string term, [FromQuery] string? conversationId)
@@ -70,7 +77,6 @@ namespace SearchService.Api.Controllers
                                     ? f.Term(t => t.Field("conversationId.keyword").Value(conversationId))
                                     : f.MatchAll()
                                 )
-                                // BẮT BUỘC CÓ DÒNG NÀY: Chỉ tính điểm cho docs có cột Embedding
                                 .Must(m => m.Exists(e => e.Field(f => f.Embedding)))
                             )
                         )
@@ -78,7 +84,7 @@ namespace SearchService.Api.Controllers
                             .Source(@"
                                 double v = cosineSimilarity(params.qv, 'embedding') + 1.0;
                                 return v; 
-                            ") // Tạm bỏ _score + keyword match để test riêng sức mạnh Vector AI trước cho dễ hiểu
+                            ") 
                             .Params(p => p.Add("qv", queryVector))
                         )
                     )
@@ -89,6 +95,62 @@ namespace SearchService.Api.Controllers
                 return StatusCode(500, response.ServerError?.ToString() ?? response.OriginalException?.Message);
 
             return Ok(response.Documents);
+        }
+        [HttpGet("summarize-unread/{conversationId}")]
+        public async Task<IActionResult> SummarizeUnread(string conversationId)
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId)) return Unauthorized();
+
+
+            var marker = await _context.UserReadMarkers
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.UserId == userId && x.ConversationId == conversationId);
+
+            var lastReadUtc = marker?.LastReadUtc ?? DateTimeOffset.UtcNow.AddDays(-1);
+
+            var searchResponse = await _client.SearchAsync<MessageDoc>(s => s
+                .Index("chat_messages")
+                .Query(q => q
+                    .Bool(b => b
+                        .Must(
+                            m => m.Term(t => t.Field(f => f.ConversationId).Value(conversationId)),
+                            m => m.DateRange(r => r
+                                .Field(f => f.CreatedAtUtc)
+                                .GreaterThan(lastReadUtc.UtcDateTime)
+                            )
+                        )
+                    )
+                )
+                .Sort(srt => srt.Ascending(f => f.CreatedAtUtc))
+                .Size(100) 
+            );
+
+            if (!searchResponse.Documents.Any())
+            {
+                return Ok(new { summary = "Bạn đã cập nhật tất cả tin nhắn mới.", count = 0 });
+            }
+
+
+            var chatHistory = string.Join("\n", searchResponse.Documents
+                .Select(d => $"{d.SenderId}: {d.Content}"));
+
+            try
+            {
+                var summary = await _embeddingService.SummarizeChatAsync(chatHistory);
+
+                return Ok(new
+                {
+                    summary,
+                    unreadCount = searchResponse.Documents.Count,
+                    lastReadAt = lastReadUtc
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Lỗi khi gọi Gemini tóm tắt cho hội thoại {ConversationId}", conversationId);
+                return StatusCode(500, "Không thể tạo bản tóm tắt từ AI lúc này.");
+            }
         }
     }
 }

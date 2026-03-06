@@ -18,11 +18,12 @@ namespace ChatService.Application.Conversations
             return conversations.Select(c =>
             {
                 var lastMsg = c.Messages.FirstOrDefault();
+                var members = c.ConversationMembers.Select(m => m.UserId).ToList();
                 return new ConversationDto(
                     Id: c.Id,
                     Title: c.Title,
                     IsDirect: c.IsDirect,
-                    Members: c.Members.ToList(),
+                    Members: members,
                     LastMessageContent: lastMsg?.Content,
                     LastMessageSenderId: lastMsg?.SenderId,
                     LastMessageSentAt: lastMsg?.SentAt

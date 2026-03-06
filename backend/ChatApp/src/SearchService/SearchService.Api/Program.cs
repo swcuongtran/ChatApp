@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authentication.Negotiate;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Nest;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+using SearchService.Api.DbContexts;
 using SearchService.Api.Model;
 using SearchService.Api.Services;
 using SearchService.Api.Workers;
@@ -22,6 +24,9 @@ var client = new ElasticClient(settings);
 builder.Services.AddSingleton<IElasticClient>(client);
 
 builder.Services.AddHostedService<SearchConsumer>();
+builder.Services.AddHostedService<UserReadConsumer>();
+builder.Services.AddDbContext<SearchDbContext>(o => o.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
 
 var serviceName = "SearchService";
 var resource = ResourceBuilder.CreateDefault().AddService(serviceName);
