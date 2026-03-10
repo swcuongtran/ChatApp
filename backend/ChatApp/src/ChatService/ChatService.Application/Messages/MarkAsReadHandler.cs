@@ -3,6 +3,7 @@ using BuildingBlock.Exception;
 using BuildingBlock.Messaging;
 using BuildingBlock.Outbox;
 using ChatService.Application.Abstractions;
+using Contracts;
 using Contracts.Chat;
 using System.Net.NetworkInformation;
 using System.Reflection.PortableExecutable;
@@ -49,7 +50,7 @@ namespace ChatService.Application.Messages
             var outboxMessage = new OutboxMessage
             {
                 Id = envelope.EventId,
-                Type = "user-read-message-v1",
+                Type = Topics.UserReadMessage,
                 Payload = payloadJson,
                 Headers = headerJson,
                 OccurredAt = now,
