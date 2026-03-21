@@ -130,5 +130,20 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    try
+    {
+        var context = services.GetRequiredService<SearchDbContext>();
+        await context.Database.MigrateAsync();
+        Console.WriteLine("--- Database Search_Db has been migrated successfully ---");
+    }
+    catch (Exception ex)
+    {
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogError("An error occurred while migrating the database.");
+    }
+}
 
 app.Run();

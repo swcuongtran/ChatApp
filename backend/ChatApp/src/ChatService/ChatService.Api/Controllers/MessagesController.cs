@@ -15,11 +15,13 @@ namespace ChatService.Api.Controllers
         private readonly SendMessageHandler _handler;
         private readonly ICorrelationIdProvider _correlationIdProvider;
         private readonly ILogger<MessagesController> _logger;
-        public MessagesController(SendMessageHandler handler, ILogger<MessagesController> logger, ICorrelationIdProvider correlationIdProvider)
+        private readonly MarkAsReadHandler _markAsReadHandler;
+        public MessagesController(SendMessageHandler handler, ILogger<MessagesController> logger, ICorrelationIdProvider correlationIdProvider, MarkAsReadHandler markAsReadHandler)
         {
             _handler = handler;
             _logger = logger;
             _correlationIdProvider = correlationIdProvider;
+            _markAsReadHandler = markAsReadHandler;
         }
         [HttpPost("send")]
         public async Task<IActionResult> SendMessage([FromBody] SendMessageRequest request, CancellationToken cancellationToken)
@@ -46,7 +48,22 @@ namespace ChatService.Api.Controllers
             }
             return BadRequest("Failed to send message.");
         }
+        [HttpDelete("mark-as-read")]
+        public async Task<IActionResult> MarkAsRead([FromBody] MarkAsReadRequest request, CancellationToken cancellationToken)
+        {
+            var traceId = _correlationIdProvider.TraceId;
+            var corrId = _correlationIdProvider.CorrelationId;
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
 
-        
+            var command = new MarkAsReadCommand(
+                ConversationId: request.ConversationId,
+                UserId: userId,
+                TraceId: traceId,
+                CorrelationId: corrId
+            );
+            await _markAsReadHandler.Handle(command, cancellationToken);
+            return Ok(new { message = "Marked as read successfully" });
+        }
     }
 }

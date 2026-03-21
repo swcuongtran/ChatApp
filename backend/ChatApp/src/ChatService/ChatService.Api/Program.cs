@@ -60,6 +60,7 @@ builder.Services.AddScoped<AddConversationMemberHandler>();
 builder.Services.AddScoped<RemoveConversationMemberHandler>();
 builder.Services.AddScoped<GetConversationsHandler>();
 builder.Services.AddScoped<GetMessagesHandler>();
+builder.Services.AddScoped<MarkAsReadHandler>();
 
 builder.Services.AddScoped<IOutboxStore, EfOutboxStore>();
 builder.Services.AddHostedService<OutboxDispatcher>();

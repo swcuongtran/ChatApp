@@ -56,28 +56,22 @@ namespace SearchService.Api.Services
         {
             if (string.IsNullOrWhiteSpace(chatHistory)) return "Không có nội dung để tóm tắt.";
 
-            var url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
+            var url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 
             var prompt = $@"
-            Bạn là một trợ lý tóm tắt hội thoại chuyên nghiệp. 
-            Dưới đây là các tin nhắn mới trong một nhóm chat mà người dùng chưa đọc.
-            Hãy tóm tắt nội dung theo các tiêu chí sau:
-            - Chủ đề chính mọi người đang thảo luận.
-            - Có ai nhắc đến hoặc đặt câu hỏi trực tiếp cho người dùng không?
-            - Các quyết định hoặc lịch trình quan trọng đã được chốt.
-            
-            Yêu cầu: Viết ngắn gọn, súc tích bằng Tiếng Việt, sử dụng bullet points.
-            
-            Nội dung tin nhắn:
-            {chatHistory}";
+        Tóm tắt ngắn gọn nội dung cuộc hội thoại sau đây câu bằng tiếng Việt. 
+        Tập trung vào nội dung chính đang thảo luận.
+        
+        Nội dung:
+        {chatHistory}"; ;
 
             var payload = new
             {
                 contents = new[] { new { parts = new[] { new { text = prompt } } } },
                 generationConfig = new
                 {
-                    maxOutputTokens = 500,
-                    temperature = 0.5
+                    temperature = 0.2,     
+                    topP = 0.8
                 }
             };
 
