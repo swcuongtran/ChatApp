@@ -15,6 +15,13 @@ namespace ChatService.Application.Messages
     {
         private readonly IConversationRepository _repo;
         private readonly IOutboxStore _outbox;
+
+        public MarkAsReadHandler(IConversationRepository repo, IOutboxStore outbox)
+        {
+            _repo = repo;
+            _outbox = outbox;
+        }
+
         public async Task<string> Handle(MarkAsReadCommand cmd, CancellationToken cancellationToken)
         {
             Guard.AgainstNullOrWhiteSpace(cmd.ConversationId, nameof(cmd.ConversationId));

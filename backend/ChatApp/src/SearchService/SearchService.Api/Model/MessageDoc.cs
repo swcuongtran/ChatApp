@@ -11,5 +11,6 @@ namespace SearchService.Api.Model
 
         [DenseVector(Dimensions = 768)]
         public float[]? Embedding { get; set; }
-    }
+    };
+    
 }

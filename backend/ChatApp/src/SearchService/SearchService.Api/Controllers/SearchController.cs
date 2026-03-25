@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Nest;
 using SearchService.Api.DbContexts;
+using SearchService.Api.DTOs;
 using SearchService.Api.Model;
 using SearchService.Api.Services;
 using System.Security.Claims;
@@ -17,84 +18,94 @@ namespace SearchService.Api.Controllers
         private readonly IEmbeddingService _embeddingService;
         private readonly SearchDbContext _context;
         private readonly ILogger<SearchController> _logger;
-        public SearchController(IElasticClient client, IEmbeddingService embeddingService, SearchDbContext searchDbContext,ILogger<SearchController> logger)
+        public SearchController(IElasticClient client, IEmbeddingService embeddingService, SearchDbContext searchDbContext, ILogger<SearchController> logger)
         {
             _embeddingService = embeddingService;
             _client = client;
             _logger = logger;
             _context = searchDbContext;
         }
-        [HttpGet]
-        public async Task<IActionResult> Search([FromQuery] string term, [FromQuery] string? conversationId)
+        [HttpGet("search-context")]
+        public async Task<IActionResult> SearchContext([FromQuery] string description, [FromQuery] string? conversationId)
         {
-            if (string.IsNullOrWhiteSpace(term)) return BadRequest();
+            if (string.IsNullOrWhiteSpace(description)) return BadRequest();
 
-            var response = await _client.SearchAsync<MessageDoc>(s => s
+            // 1. Tiền xử lý chuỗi truy vấn
+            var processedTerm = NormalizedQuery(description);
+
+            // 2. Chuyển đổi truy vấn thành Vector
+            var queryVector = await _embeddingService.GetEmbeddingAsync(processedTerm);
+            if (queryVector.Length == 0) return Ok(Array.Empty<ContextSegmentDto>());
+
+            // 3. TÌM KIẾM MỎ NEO (Hybrid Search: BM25 + Cosine Similarity)
+            var anchorResponse = await _client.SearchAsync<MessageDoc>(s => s
+                .Index("chat_messages")
+                .Size(5) 
                 .Query(q => q
                     .Bool(b => b
-                        .Must(m => m
-                            .Match(mt => mt
+                        .Filter(f => !string.IsNullOrEmpty(conversationId)
+                            ? f.Term(t => t.Field(f => f.ConversationId).Value(conversationId))
+                            : f.MatchAll()
+                        )
+                        .Should(
+                            // Điểm Lexical
+                            sh => sh.Match(m => m
                                 .Field(f => f.Content)
-                                .Query(term)
-                                .Fuzziness(Fuzziness.Auto) 
-                            )
-                        )
-                        .Filter(f =>
-                        {
-                            if (string.IsNullOrEmpty(conversationId))
-                                return f.MatchAll();
-
-                            return f.Term(t => t
-                                .Field("conversationId.keyword") 
-                                .Value(conversationId)          
-                            );
-                        })
-                    )
-                )
-                .Size(20) 
-            );
-
-            return Ok(response.Documents);
-        }
-        [HttpGet("hybrid")]
-        public async Task<IActionResult> HybridSearch([FromQuery] string term, [FromQuery] string? conversationId)
-        {
-            if (string.IsNullOrWhiteSpace(term)) return BadRequest();
-
-            var queryVector = await _embeddingService.GetEmbeddingAsync(term);
-            if (queryVector.Length == 0) return Ok(Array.Empty<MessageDoc>());
-            if (queryVector.Length != 768)
-                return StatusCode(500, $"Embedding dim mismatch: {queryVector.Length} (expected 768)");
-            var response = await _client.SearchAsync<MessageDoc>(s => s
-                .Index("chat_messages")
-                .Size(20)
-                .Query(q => q
-                    .ScriptScore(ss => ss
-                        .Query(qq => qq
-                            .Bool(b => b
-                                // Filter Conversation
-                                .Filter(f => !string.IsNullOrEmpty(conversationId)
-                                    ? f.Term(t => t.Field("conversationId.keyword").Value(conversationId))
-                                    : f.MatchAll()
+                                .Query(processedTerm)
+                                .Boost(0.4)
+                            ),
+                            // Điểm Semantic
+                            sh => sh.ScriptScore(ss => ss
+                                .Query(qq => qq.Exists(e => e.Field(f => f.Embedding)))
+                                .Script(sc => sc
+                                    .Source("cosineSimilarity(params.qv, 'embedding') + 1.0")
+                                    .Params(p => p.Add("qv", queryVector))
                                 )
-                                .Must(m => m.Exists(e => e.Field(f => f.Embedding)))
+                                .Boost(0.6)
                             )
                         )
-                        .Script(sc => sc
-                            .Source(@"
-                                double v = cosineSimilarity(params.qv, 'embedding') + 1.0;
-                                return v; 
-                            ") 
-                            .Params(p => p.Add("qv", queryVector))
-                        )
+                        .MinimumShouldMatch(1)
                     )
                 )
             );
 
-            if (!response.IsValid)
-                return StatusCode(500, response.ServerError?.ToString() ?? response.OriginalException?.Message);
+            if (!anchorResponse.IsValid || !anchorResponse.Documents.Any())
+                return Ok(new List<ContextSegmentDto>());
 
-            return Ok(response.Documents);
+            var segments = new List<ContextSegmentDto>();
+
+            // 4. MỞ RỘNG NGỮ CẢNH (Context Expansion)
+            foreach (var hit in anchorResponse.Hits)
+            {
+                var anchor = hit.Source;
+                var anchorTime = anchor.CreatedAtUtc.UtcDateTime;
+
+                // Tìm các tin nhắn trong vòng +/- 5 phút xung quanh tin nhắn mỏ neo
+                var contextResponse = await _client.SearchAsync<MessageDoc>(s => s
+                    .Index("chat_messages")
+                    .Size(30)
+                    .Query(q => q
+                        .Bool(b => b.Must(
+                            m => m.Term(t => t.Field(f => f.ConversationId).Value(anchor.ConversationId)),
+                            m => m.DateRange(r => r
+                                .Field(f => f.CreatedAtUtc)
+                                .GreaterThanOrEquals(anchorTime.AddMinutes(-5))
+                                .LessThanOrEquals(anchorTime.AddMinutes(5))
+                            )
+                        ))
+                    )
+                    .Sort(srt => srt.Ascending(f => f.CreatedAtUtc))
+                );
+
+                segments.Add(new ContextSegmentDto(
+                    ConversationId: anchor.ConversationId,
+                    RelevanceScore: hit.Score ?? 0,
+                    AnchorMessage: anchor,
+                    SurroundingMessages: contextResponse.Documents.ToList()
+                ));
+            }
+
+            return Ok(segments);
         }
         [HttpGet("summarize-unread/{conversationId}")]
         public async Task<IActionResult> SummarizeUnread(string conversationId)
@@ -123,7 +134,7 @@ namespace SearchService.Api.Controllers
                     )
                 )
                 .Sort(srt => srt.Ascending(f => f.CreatedAtUtc))
-                .Size(100) 
+                .Size(100)
             );
 
             if (!searchResponse.Documents.Any())
@@ -151,6 +162,28 @@ namespace SearchService.Api.Controllers
                 _logger.LogError(ex, "Lỗi khi gọi Gemini tóm tắt cho hội thoại {ConversationId}", conversationId);
                 return StatusCode(500, "Không thể tạo bản tóm tắt từ AI lúc này.");
             }
+        }
+    
+    private string NormalizedQuery(string input)
+        {
+            if (string.IsNullOrWhiteSpace(input)) return input;
+            var dictionary = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                {"ko", "không"}, {"k", "không"}, {"đc", "được"}, {"dc", "được"},
+                {"bn", "bệnh nhân"}, {"bs", "bác sĩ"}, {"xn", "xét nghiệm"},
+                {"ph", "phác đồ"}, {"cls", "cận lâm sàng"}
+            };
+            var words = input.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+            for (int i = 0; i < words.Length; i++)
+            {
+                var cleanWord = words[i].Trim().ToLower();
+                if (dictionary.TryGetValue(cleanWord, out var normalWord))
+                {
+                    words[i] = normalWord;
+                }
+            }
+            return string.Join(' ', words);
         }
     }
 }

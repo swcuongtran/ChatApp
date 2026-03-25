@@ -48,7 +48,7 @@ namespace ChatService.Api.Controllers
             }
             return BadRequest("Failed to send message.");
         }
-        [HttpDelete("mark-as-read")]
+        [HttpPost("mark-as-read")]
         public async Task<IActionResult> MarkAsRead([FromBody] MarkAsReadRequest request, CancellationToken cancellationToken)
         {
             var traceId = _correlationIdProvider.TraceId;

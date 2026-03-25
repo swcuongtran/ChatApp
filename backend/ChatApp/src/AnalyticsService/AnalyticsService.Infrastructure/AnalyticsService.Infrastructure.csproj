@@ -14,10 +14,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\ChatService\ChatService.Domain\ChatService.Domain.csproj" />
     <ProjectReference Include="..\..\Shared\BuildingBlock\BuildingBlock.csproj" />
     <ProjectReference Include="..\..\Shared\Contracts\Contracts.csproj" />
     <ProjectReference Include="..\..\Shared\Utils\Utils.csproj" />
+    <ProjectReference Include="..\AnalyticsService.Application\AnalyticsService.Application.csproj" />
     <ProjectReference Include="..\AnalyticsService.Domain\AnalyticsService.Domain.csproj" />
   </ItemGroup>
 

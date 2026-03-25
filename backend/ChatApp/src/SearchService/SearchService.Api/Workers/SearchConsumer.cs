@@ -71,14 +71,36 @@ namespace SearchService.Api.Workers
                     {
                         var msg = envelope.Data;
                         float[]? vector = null;
-                        try
+                        int retryCount = 0;
+
+                        // VÒNG LẶP RETRY: Cầm chân tiến trình cho đến khi lấy được Vector
+                        while (vector == null && !stoppingToken.IsCancellationRequested)
                         {
-                            vector = await _embeddingService.GetEmbeddingAsync(msg.Content);
+                            try
+                            {
+                                // Tránh trường hợp text rỗng gây lỗi
+                                if (string.IsNullOrWhiteSpace(msg.Content))
+                                {
+                                    vector = Array.Empty<float>();
+                                    break;
+                                }
+
+                                vector = await _embeddingService.GetEmbeddingAsync(msg.Content);
+                            }
+                            catch (Exception ex)
+                            {
+                                retryCount++;
+                                // Thời gian đợi tăng dần: 2s, 4s, 6s... tối đa 30s để Gemini kịp "thở"
+                                int delaySeconds = Math.Min(retryCount * 2, 30);
+                                _logger.LogWarning(ex, "[Rate Limit] Lỗi gọi Gemini cho tin nhắn {MessageId}. Thử lại lần {RetryCount}. Đợi {Delay}s...", msg.MessageId, retryCount, delaySeconds);
+
+                                await Task.Delay(TimeSpan.FromSeconds(delaySeconds), stoppingToken);
+                            }
                         }
-                        catch (Exception ex)
-                        {
-                            _logger.LogWarning(ex, "Failed to generate embedding for message {MessageId}", msg.MessageId);
-                        }
+
+                        // Nếu vòng lặp dừng vì app bị tắt (Cancel) thì không làm tiếp
+                        if (vector == null) continue;
+
                         var doc = new MessageDoc
                         {
                             Id = msg.MessageId,
@@ -86,25 +108,27 @@ namespace SearchService.Api.Workers
                             SenderId = msg.SenderId,
                             Content = msg.Content,
                             CreatedAtUtc = msg.CreatedAtUtc,
-                            Embedding = vector
+                            Embedding = vector.Length > 0 ? vector : null // Gán null nếu text rỗng không có vector
                         };
 
                         var response = await _client.IndexDocumentAsync(doc, stoppingToken);
                         if (!response.IsValid)
                         {
-                            _logger.LogError("Failed to index message {MessageId}: {Error}", msg.MessageId, response.OriginalException?.Message);
+                            // Nếu lưu vào Elasticsearch lỗi, NÉM EXCEPTION để văng ra vòng Catch bên ngoài
+                            // Kafka sẽ không commit, và tin nhắn sẽ được fetch lại.
+                            throw new Exception($"Lỗi lưu Elasticsearch cho tin {msg.MessageId}: {response.OriginalException?.Message}");
                         }
-                        else
-                        {
-                            _logger.LogInformation("Indexed message {MessageId} into Elasticsearch", msg.MessageId);
-                            consumer.Commit(cr);
-                        }
+
+                        _logger.LogInformation("Indexed message {MessageId} into Elasticsearch successfully", msg.MessageId);
+
+                        // LỆNH QUAN TRỌNG NHẤT: CHỈ COMMIT KHI ĐÃ CÓ VECTOR VÀ LƯU ES THÀNH CÔNG
+                        consumer.Commit(cr);
                     }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error in SearchConsumer");
-                    await Task.Delay(1000, stoppingToken);
+                    _logger.LogError(ex, "Error in SearchConsumer processing loop. Will try processing next message or re-fetch.");
+                    await Task.Delay(2000, stoppingToken);
                 }
             }
         }
