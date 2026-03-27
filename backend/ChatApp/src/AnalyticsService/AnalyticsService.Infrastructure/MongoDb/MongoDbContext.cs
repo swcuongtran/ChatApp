@@ -1,5 +1,4 @@
 ﻿using AnalyticsService.Infrastructure.MongoDb.Documents;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using MongoDB.Driver;
 

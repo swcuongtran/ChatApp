@@ -12,7 +12,19 @@ namespace AnalyticsService.Infrastructure.MongoDb.Repositories
         {
             _mongoCollection = mongoDatabase.GetCollection<UserBasketDocument>("user_baskets");
         }
-        public async Task SaveBasketAsync(UserBasket basket, CancellationToken cancellationToken = default)
+        public async Task<UserBasket?> GetBasketAsync(string userId, DateTime date, CancellationToken cancellationToken = default)
+        {
+            var targetDate = date.Date;
+            var document = await _mongoCollection
+                .Find(x => x.UserId == userId && x.Date == targetDate)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (document == null) return null;
+
+            return new UserBasket(document.Id, document.UserId, document.Date, document.Categories);
+        }
+
+        public async Task UpsertBasketAsync(UserBasket basket, CancellationToken cancellationToken = default)
         {
             var document = new UserBasketDocument
             {
@@ -21,7 +33,9 @@ namespace AnalyticsService.Infrastructure.MongoDb.Repositories
                 Date = basket.Date,
                 Categories = basket.Categories.ToList()
             };
-            await _mongoCollection.InsertOneAsync(document);
+
+            var filter = Builders<UserBasketDocument>.Filter.Eq(x => x.Id, document.Id);
+            await _mongoCollection.ReplaceOneAsync(filter, document, new ReplaceOptions { IsUpsert = true }, cancellationToken);
         }
     }
 }

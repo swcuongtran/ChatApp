@@ -4,6 +4,8 @@ namespace AnalyticsService.Application.Abstractions
 {
     public interface IBasketRepository
     {
-        Task SaveBasketAsync(UserBasket basket, CancellationToken cancellationToken = default);
+        Task<UserBasket?> GetBasketAsync(string userId, DateTime date, CancellationToken cancellationToken = default);
+        Task UpsertBasketAsync(UserBasket basket, CancellationToken cancellationToken = default);
     }
 }
+
