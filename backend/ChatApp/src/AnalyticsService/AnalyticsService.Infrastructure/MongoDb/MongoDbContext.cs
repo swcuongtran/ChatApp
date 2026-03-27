@@ -8,6 +8,8 @@ namespace AnalyticsService.Infrastructure.MongoDb
     {
         IMongoCollection<DailyStatDocument> DailyStats { get; }
         IMongoCollection<DailyUserStatDocument> UserDailyStats { get; }
+        IMongoCollection<UserBasketDocument> UserBaskets { get; }
+        IMongoCollection<AdRuleDocument> AdRules { get; }
     }
     public class MongoDbContext : IMongoDbContext
     {
@@ -24,5 +26,8 @@ namespace AnalyticsService.Infrastructure.MongoDb
         public IMongoCollection<DailyStatDocument> DailyStats => _database.GetCollection<DailyStatDocument>("DailySystemStat");
         public IMongoCollection<DailyUserStatDocument> UserDailyStats
         => _database.GetCollection<DailyUserStatDocument>("UserDailyStats");
+
+        public IMongoCollection<UserBasketDocument> UserBaskets => _database.GetCollection<UserBasketDocument>("user_baskets");
+        public IMongoCollection<AdRuleDocument> AdRules => _database.GetCollection<AdRuleDocument>("ad_rules");
     }
 }

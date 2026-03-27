@@ -1,6 +1,10 @@
 using AnalyticsService.Api.Workers;
+using AnalyticsService.Application.Abstractions;
 using AnalyticsService.Application.Queries;
+using AnalyticsService.Application.Services;
 using AnalyticsService.Infrastructure.MongoDb;
+using AnalyticsService.Infrastructure.MongoDb.Repositories;
+using AnalyticsService.Infrastructure.Workers;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Net.WebSockets;
@@ -13,7 +17,12 @@ builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 builder.Services.AddSingleton<IMongoDbContext, MongoDbContext>();
+builder.Services.AddHostedService<AdBasketConsumer>();
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<IBasketRepository, BasketRepository>();
 builder.Services.AddHostedService<StatsConsumer>();
+builder.Services.AddSingleton<AprioriService>();
+builder.Services.AddHostedService<AprioriWorker>(); 
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(GetDailyStatsQuery).Assembly));
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>

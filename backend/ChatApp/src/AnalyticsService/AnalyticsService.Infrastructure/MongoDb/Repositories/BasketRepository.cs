@@ -1,16 +1,17 @@
-﻿using System.Linq;
-using AnalyticsService.Application.Abstractions;
+﻿using AnalyticsService.Application.Abstractions;
 using AnalyticsService.Domain.Entities;
 using AnalyticsService.Infrastructure.MongoDb.Documents;
+using Microsoft.EntityFrameworkCore;
 using MongoDB.Driver;
+using System.Linq;
 namespace AnalyticsService.Infrastructure.MongoDb.Repositories
 {
     public class BasketRepository : IBasketRepository
     {
         private readonly IMongoCollection<UserBasketDocument> _mongoCollection;
-        public BasketRepository(IMongoDatabase mongoDatabase)
+        public BasketRepository(IMongoDbContext dbContext)
         {
-            _mongoCollection = mongoDatabase.GetCollection<UserBasketDocument>("user_baskets");
+            _mongoCollection = dbContext.UserBaskets;
         }
         public async Task<UserBasket?> GetBasketAsync(string userId, DateTime date, CancellationToken cancellationToken = default)
         {
