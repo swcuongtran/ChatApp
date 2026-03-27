@@ -29,7 +29,7 @@ namespace AnalyticsService.Infrastructure.Workers
                 {
                     // Đang setup chạy mỗi 10 phút 1 lần để bạn dễ test khi chấm đồ án
                     // Nếu muốn chạy ban đêm thì dùng logic: if (DateTime.Now.Hour == 2)
-                    await Task.Delay(TimeSpan.FromMinutes(10), stoppingToken);
+                    await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
 
                     _logger.LogInformation("[Data Mining] Bắt đầu chạy Apriori...");
 

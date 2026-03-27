@@ -37,7 +37,7 @@ namespace SearchService.Api.Workers
             using var consumer = new ConsumerBuilder<string, string>(conf).Build();
             consumer.Subscribe(Topics.UserReadMessage);
             _logger.LogInformation("UserReadConsumer started and subscribed to topic {Topic}", Topics.UserReadMessage);
-
+            await Task.Yield();
             while (!stoppingToken.IsCancellationRequested)
             {
                 try

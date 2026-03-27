@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Nest;
@@ -163,8 +164,65 @@ namespace SearchService.Api.Controllers
                 return StatusCode(500, "Không thể tạo bản tóm tắt từ AI lúc này.");
             }
         }
-    
-    private string NormalizedQuery(string input)
+        // 1. API ĐỂ BẠN GỌI BẰNG TAY (POSTMAN) 1 LẦN DUY NHẤT ĐỂ NẠP CATEGORY VÀO ELASTICSEARCH
+        [AllowAnonymous]
+        [HttpPost("seed-ad-categories")]
+        public async Task<IActionResult> SeedAdCategories()
+        {
+            var categories = new[] {
+                "Thuốc xương khớp", "Khám nhi", "Mẹ và bé", "Dược phẩm", "Thể thao", "Đồ công nghệ", "Bảo hiểm y tế", "Mỹ phẩm"
+            };
+
+            int count = 0;
+            foreach (var cat in categories)
+            {
+                // Biến đổi Text thành Vector 768 chiều bằng Gemini
+                var vector = await _embeddingService.GetEmbeddingAsync(cat);
+                var doc = new { Id = Guid.NewGuid().ToString(), CategoryName = cat, Embedding = vector };
+
+                // Lưu vào Index "ad_categories"
+                var response = await _client.IndexAsync(doc, i => i.Index("ad_categories"));
+                if (response.IsValid) count++;
+            }
+
+            return Ok($"Đã khởi tạo thành công {count} danh mục quảng cáo vào Elasticsearch!");
+        }
+
+        // 2. API DÀNH CHO ANALYTICS SERVICE GỌI SANG ĐỂ TÌM CATEGORY GẦN NGHĨA VỚI CÂU CHAT
+        [AllowAnonymous]
+        [HttpGet("match-category")]
+        public async Task<IActionResult> MatchCategory([FromQuery] string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return Ok(string.Empty);
+
+            var queryVector = await _embeddingService.GetEmbeddingAsync(text);
+
+            var response = await _client.SearchAsync<dynamic>(s => s
+                .Index("ad_categories")
+                .Query(q => q
+                    .ScriptScore(ss => ss
+                        .Query(qq => qq.Exists(e => e.Field("embedding"))) // Chỉ tìm các doc có vector
+                        .Script(sc => sc
+                            .Source("cosineSimilarity(params.qv, 'embedding') + 1.0")
+                            .Params(p => p.Add("qv", queryVector))
+                        )
+                    )
+                )
+                .Size(1) // Chỉ lấy 1 category có điểm cao nhất
+            );
+
+            var bestMatch = response.Documents.FirstOrDefault();
+            if (bestMatch != null)
+            {
+                // Lấy ra tên Category (Bắn chuỗi string thuần về cho Consumer)
+                string categoryName = bestMatch.CategoryName.ToString();
+                return Ok(categoryName);
+            }
+
+            return Ok(string.Empty);
+        }
+
+        private string NormalizedQuery(string input)
         {
             if (string.IsNullOrWhiteSpace(input)) return input;
             var dictionary = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)

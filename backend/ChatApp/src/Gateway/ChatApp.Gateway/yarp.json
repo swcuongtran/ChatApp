@@ -32,6 +32,19 @@
           }
         ]
       },
+      "api-ads": {
+        "ClusterId": "stats",
+        "Match": {
+          "Path": "/api/ads/{**catch-all}"
+        },
+        "Transforms": [
+          { "RequestHeaderOriginalHost": "true" },
+          {
+            "RequestHeader": "X-Correlation-Id",
+            "Set": "{X-Correlation-Id}"
+          }
+        ]
+      },
       "api-history": {
         "Match": {
           "Path": "/api/history/{**catch-all}"

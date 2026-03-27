@@ -43,7 +43,7 @@ namespace AnalyticsService.Infrastructure.Workers
             consumer.Subscribe(Topics.ChatMessageCreated); // Chỉ hóng đúng topic chat
 
             _logger.LogInformation("AdBasketConsumer started.");
-
+            await Task.Yield();
             while (!stoppingToken.IsCancellationRequested)
             {
                 try
