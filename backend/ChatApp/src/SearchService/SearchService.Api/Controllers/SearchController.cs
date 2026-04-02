@@ -164,31 +164,49 @@ namespace SearchService.Api.Controllers
                 return StatusCode(500, "Không thể tạo bản tóm tắt từ AI lúc này.");
             }
         }
-        // 1. API ĐỂ BẠN GỌI BẰNG TAY (POSTMAN) 1 LẦN DUY NHẤT ĐỂ NẠP CATEGORY VÀO ELASTICSEARCH
         [AllowAnonymous]
         [HttpPost("seed-ad-categories")]
         public async Task<IActionResult> SeedAdCategories()
         {
+            // 1. XÓA INDEX CŨ (Vì index cũ đang bị sai kiểu dữ liệu)
+            var existsResponse = await _client.Indices.ExistsAsync("ad_categories");
+            if (existsResponse.Exists)
+            {
+                await _client.Indices.DeleteAsync("ad_categories");
+            }
+
+            // 2. TẠO INDEX MỚI VỚI MAPPING CHUẨN CHO VECTOR
+            await _client.Indices.CreateAsync("ad_categories", c => c
+                .Map<AdCategoryDoc>(m => m
+                    .Properties(p => p
+                        .Keyword(k => k.Name(n => n.Id))
+                        .Text(t => t.Name(n => n.CategoryName))
+                        .DenseVector(dv => dv.Name(n => n.Embedding).Dimensions(768)) // Gemini Embedding có 768 chiều
+                    )
+                )
+            );
+
             var categories = new[] {
-                "Thuốc xương khớp", "Khám nhi", "Mẹ và bé", "Dược phẩm", "Thể thao", "Đồ công nghệ", "Bảo hiểm y tế", "Mỹ phẩm"
+                "Thuốc xương khớp", "Khám nhi", "Mẹ và bé", "Dược phẩm", "Thể thao",
+                "Đồ công nghệ", "Bảo hiểm y tế", "Mỹ phẩm", "Du lịch", "Bất động sản",
+                "Ô tô - Xe máy", "Thực phẩm chức năng", "Thời trang nam nữ", "Chăm sóc thú cưng",
+                "Khóa học - Giáo dục", "Nha khoa thẩm mỹ", "Thiết bị gia dụng",
+                "Đồng hồ - Trang sức", "Sách - Văn phòng phẩm", "Dụng cụ thể hình"
             };
 
             int count = 0;
             foreach (var cat in categories)
             {
-                // Biến đổi Text thành Vector 768 chiều bằng Gemini
                 var vector = await _embeddingService.GetEmbeddingAsync(cat);
-                var doc = new { Id = Guid.NewGuid().ToString(), CategoryName = cat, Embedding = vector };
+                var doc = new AdCategoryDoc { Id = Guid.NewGuid().ToString(), CategoryName = cat, Embedding = vector };
 
-                // Lưu vào Index "ad_categories"
                 var response = await _client.IndexAsync(doc, i => i.Index("ad_categories"));
                 if (response.IsValid) count++;
             }
 
-            return Ok($"Đã khởi tạo thành công {count} danh mục quảng cáo vào Elasticsearch!");
+            return Ok($"Đã khởi tạo thành công {count} danh mục quảng cáo chuẩn Vector!");
         }
 
-        // 2. API DÀNH CHO ANALYTICS SERVICE GỌI SANG ĐỂ TÌM CATEGORY GẦN NGHĨA VỚI CÂU CHAT
         [AllowAnonymous]
         [HttpGet("match-category")]
         public async Task<IActionResult> MatchCategory([FromQuery] string text)
@@ -197,31 +215,119 @@ namespace SearchService.Api.Controllers
 
             var queryVector = await _embeddingService.GetEmbeddingAsync(text);
 
-            var response = await _client.SearchAsync<dynamic>(s => s
+            var response = await _client.SearchAsync<AdCategoryDoc>(s => s
                 .Index("ad_categories")
                 .Query(q => q
                     .ScriptScore(ss => ss
-                        .Query(qq => qq.Exists(e => e.Field("embedding"))) // Chỉ tìm các doc có vector
+                        .Query(qq => qq.Exists(e => e.Field(f => f.Embedding)))
                         .Script(sc => sc
                             .Source("cosineSimilarity(params.qv, 'embedding') + 1.0")
                             .Params(p => p.Add("qv", queryVector))
                         )
                     )
                 )
-                .Size(1) // Chỉ lấy 1 category có điểm cao nhất
+                .Size(1)
             );
 
-            var bestMatch = response.Documents.FirstOrDefault();
-            if (bestMatch != null)
+            // 3. THÊM ĐOẠN NÀY ĐỂ NẾU LỖI NÓ SẼ BÁO ĐỎ LÊN POSTMAN, KHÔNG IM LẶNG NỮA
+            if (!response.IsValid)
             {
-                // Lấy ra tên Category (Bắn chuỗi string thuần về cho Consumer)
-                string categoryName = bestMatch.CategoryName.ToString();
-                return Ok(categoryName);
+                _logger.LogError("Lỗi ES: {Reason}", response.ServerError?.Error?.Reason);
+                return BadRequest($"Elasticsearch Error: {response.ServerError?.Error?.Reason}");
+            }
+
+            var bestMatch = response.Documents.FirstOrDefault();
+            if (bestMatch != null && !string.IsNullOrEmpty(bestMatch.CategoryName))
+            {
+                return Content(bestMatch.CategoryName, "text/plain");
             }
 
             return Ok(string.Empty);
         }
+        // API TỰ ĐỘNG CHẤM ĐIỂM AI TỪ FILE CSV
+        [AllowAnonymous]
+        [HttpPost("evaluate-accuracy")]
+        public async Task<IActionResult> EvaluateAccuracy(IFormFile file)
+        {
+            if (file == null || file.Length == 0)
+                return BadRequest("Vui lòng upload file test_data.csv");
 
+            var results = new List<object>();
+            int correctCount = 0;
+            int totalCount = 0;
+
+            using var reader = new StreamReader(file.OpenReadStream());
+            var header = await reader.ReadLineAsync(); // Bỏ qua dòng tiêu đề (CauChat,DanhMuc)
+
+            while (!reader.EndOfStream)
+            {
+                var line = await reader.ReadLineAsync();
+                if (string.IsNullOrWhiteSpace(line)) continue;
+
+                // Dọn dẹp dấu ngoặc kép ở đầu và cuối chuỗi do CSV sinh ra
+                if (line.StartsWith("\"") && line.EndsWith("\""))
+                {
+                    line = line.Substring(1, line.Length - 2);
+                }
+
+                // Cắt chuỗi dựa trên ký tự phân cách của CSV
+                var parts = line.Split(new[] { "\",\"" }, StringSplitOptions.None);
+                if (parts.Length != 2) parts = line.Split(','); // Fallback nếu file lưu không có ngoặc kép
+                if (parts.Length != 2) continue;
+
+                var cauChat = parts[0].Trim('"');
+                var expectedCategories = parts[1].Trim('"');
+
+                // --- 1. GỌI AI GEMINI & ELASTICSEARCH ĐỂ DỰ ĐOÁN ---
+                var queryVector = await _embeddingService.GetEmbeddingAsync(cauChat);
+                var response = await _client.SearchAsync<AdCategoryDoc>(s => s
+                    .Index("ad_categories")
+                    .Query(q => q
+                        .ScriptScore(ss => ss
+                            .Query(qq => qq.Exists(e => e.Field(f => f.Embedding)))
+                            .Script(sc => sc
+                                .Source("cosineSimilarity(params.qv, 'embedding') + 1.0")
+                                .Params(p => p.Add("qv", queryVector))
+                            )
+                        )
+                    )
+                    .Size(1) // Chỉ lấy 1 danh mục có điểm cao nhất
+                );
+
+                var bestMatch = response.Documents.FirstOrDefault();
+                string aiResult = bestMatch?.CategoryName ?? "Không xác định";
+
+                // --- 2. ĐỐI CHIẾU KẾT QUẢ ---
+                // Nếu danh mục AI đoán CÓ NẰM TRONG chuỗi kỳ vọng của file CSV -> Tính là ĐÚNG
+                bool isCorrect = expectedCategories.Contains(aiResult, StringComparison.OrdinalIgnoreCase);
+
+                if (isCorrect) correctCount++;
+                totalCount++;
+
+                // Lưu lại lịch sử để in ra báo cáo
+                results.Add(new
+                {
+                    CauChat = cauChat,
+                    KyVong = expectedCategories,
+                    AIDuDoan = aiResult,
+                    KetQua = isCorrect ? "ĐÚNG" : "SAI"
+                });
+            }
+
+            // --- 3. TÍNH TỔNG ĐIỂM CHÍNH XÁC (PRECISION) ---
+            double accuracy = totalCount > 0 ? Math.Round((double)correctCount / totalCount * 100, 2) : 0;
+
+            return Ok(new
+            {
+                ThongKe = new
+                {
+                    TongSoCauTest = totalCount,
+                    SoCauDoanDung = correctCount,
+                    TiLeChinhXac = $"{accuracy}%"
+                },
+                ChiTiet = results
+            });
+        }
         private string NormalizedQuery(string input)
         {
             if (string.IsNullOrWhiteSpace(input)) return input;
@@ -244,4 +350,5 @@ namespace SearchService.Api.Controllers
             return string.Join(' ', words);
         }
     }
+    
 }
